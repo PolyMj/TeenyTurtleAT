@@ -155,9 +155,20 @@ int main(int argc, char *argv[]) {
 }
 
 void bus_read(teenyat *t, tny_uword addr, tny_word *data, uint16_t *delay) {
+    
+    switch(addr) {
+    case TURTLE_X:
+        data->u = turtle_x;  
+        break;
+    case TURTLE_Y: 
+        data->u = turtle_y;
+        break;
+    }
     return;
+
 }
 
 void bus_write(teenyat *t, tny_uword addr, tny_word data, uint16_t *delay) {
     return;
 }
+
