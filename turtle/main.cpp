@@ -130,6 +130,7 @@ int main(int argc, char *argv[]) {
     int frame_number = 0;
     window = tigrWindow(windowWidth, windowHeight, "TeenyAT Turtle", TIGR_FIXED);
     base_image = tigrBitmap(window->w, window->h);
+    tigrClear(window, tigrRGB(255, 255, 255));
     tigrClear(base_image, tigrRGB(255, 255, 255));
 
     if(argc == 3) {
@@ -171,4 +172,3 @@ void bus_read(teenyat *t, tny_uword addr, tny_word *data, uint16_t *delay) {
 void bus_write(teenyat *t, tny_uword addr, tny_word data, uint16_t *delay) {
     return;
 }
-
