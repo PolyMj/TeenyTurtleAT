@@ -62,12 +62,12 @@ struct vec2
     }
 
     // Euclidian length
-    auto length() -> typename VecLength<T>::type { 
+    auto length() const -> typename VecLength<T>::type { 
         return sqrt(static_cast<typename VecLength<T>::type>(x*x + y*y)); 
     }; 
 
     // Returns a normalized version of the vector
-    auto normalize() const -> typename VecLength<T>::type { 
+    auto normalize() const -> vec2<typename VecLength<T>::type> { 
         auto len = length(); 
         return { 
             x / len, 

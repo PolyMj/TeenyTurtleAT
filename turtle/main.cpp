@@ -2,6 +2,11 @@
 #include <cstdlib>
 #include "tigr.h"
 #include "teenyat.h"
+#include "draw.hpp"
+#include "vec.hpp"
+#include <thread> // Required for std::this_thread
+#include <chrono> // Required for std::chrono::milliseconds
+
 /*  TeenyAT Turtle System
  *
  *  TURTLE_X:
@@ -99,6 +104,15 @@ Tigr* base_image;
 int   windowWidth = 640;
 int   windowHeight = 500;
 
+vec2      turtle_position           = vec2(320.0f,250.0f);
+vec2      turtle_target_position    = vec2(0.0f,0.0f);
+double    turtle_heading            = 0.0f;
+TPixel    pen_color                 = {0,0,0,0};
+int       pen_size                  = 5;
+bool      pen_down                  = false;
+bool      erase_mode                = false;
+bool      move_turtle               = true;
+
 int main(int argc, char *argv[]) {
     /* If only one parameter is provided then we treat it as the teenyat binary
      * but if two are provided then the first parameter is the teenyat binary and
@@ -145,8 +159,23 @@ int main(int argc, char *argv[]) {
         /* Move base_image ontop of our window */
         tigrBlit(window, base_image, 0, 0, 0, 0, base_image->w, base_image->h);
 
+        fillCircle(base_image, turtle_position.x, turtle_position.y, 5, {255,0,0,255}, NULL);
+
+        if(move_turtle) {
+            vec2 dir = turtle_target_position;
+            dir.x = dir.x - turtle_position.x;
+            dir.y = dir.y - turtle_position.y;
+            dir = dir.normalize();
+            turtle_position.x += dir.x;
+            turtle_position.y += dir.y;
+            // check if tutrle_pos == target_pos then trigger and interrupt and stop moving
+        }
+
         /* We have to run tigrUpdate if we want our window to take input */
-        if(!frame_number) tigrUpdate(window);
+        if(frame_number) {
+            tigrUpdate(window);
+           // std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
 
         frame_number = (frame_number + 1) % 60;
     }
@@ -158,10 +187,10 @@ int main(int argc, char *argv[]) {
 void bus_read(teenyat *t, tny_uword addr, tny_word *data, uint16_t *delay) {
     switch(addr) {
     case TURTLE_X:
-        data->u = turtle_x;  
+        data->u = turtle_position.x;
         break;
-    case TURTLE_Y: 
-        data->u = turtle_y;
+    case TURTLE_Y:
+        data->u = turtle_position.y;
         break;
     }
     return;
@@ -170,6 +199,12 @@ void bus_read(teenyat *t, tny_uword addr, tny_word *data, uint16_t *delay) {
 }
 
 void bus_write(teenyat *t, tny_uword addr, tny_word data, uint16_t *delay) {
+    switch(addr){
+        case GOTO_XY: {
+          move_turtle = true;
+        }
+        break;
+    }
     return;
 }
 
