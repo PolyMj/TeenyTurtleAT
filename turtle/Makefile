@@ -17,8 +17,9 @@ all:
 	@echo ------ Building ------
 	gcc -c tigr.c -o tigr.o $(CFLAGS)
 	gcc -c ../teenyat.c -o teenyat.o $(CFLAGS)
+	gcc -c draw.cpp -o draw.o $(CFLAGS)
 	g++ -c main.cpp -o main.o $(CPPFLAGS)
-	g++ tigr.o teenyat.o main.o -o turtle $(LDFLAGS)
+	g++ tigr.o teenyat.o draw.o main.o -o turtle $(LDFLAGS)
 	@echo ------ Cleaning -------
 	$(RMCMD) *.o
 
