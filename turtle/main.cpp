@@ -1,11 +1,11 @@
 #include <iostream>
 #include <cstdlib>
-#include "tigr.h"
-#include "teenyat.h"
-#include "draw.hpp"
+#include <thread>
+#include <chrono>
 #include "vec.hpp"
-#include <thread> // Required for std::this_thread
-#include <chrono> // Required for std::chrono::milliseconds
+#include "tigr.h"
+#include "draw.hpp"
+#include "teenyat.h"
 
 /*  TeenyAT Turtle System
  *
@@ -98,6 +98,7 @@
 
 void bus_read(teenyat *t, tny_uword addr, tny_word *data, uint16_t *delay);
 void bus_write(teenyat *t, tny_uword addr, tny_word data, uint16_t *delay);
+void move_to_target(teenyat *t);
 
 Tigr* window;
 Tigr* base_image;
@@ -105,6 +106,7 @@ int   windowWidth = 640;
 int   windowHeight = 500;
 
 vec2      turtle_position           = vec2(320.0f,250.0f);
+int       turtle_size               = 5;
 vec2      turtle_target_position    = vec2(0.0f,0.0f);
 double    turtle_heading            = 0.0f;
 TPixel    pen_color                 = {0,0,0,0};
@@ -156,22 +158,19 @@ int main(int argc, char *argv[]) {
     while(!tigrClosed(window) && !tigrKeyDown(window, TK_ESCAPE)) {
         tny_clock(&t);
 
-        /* Move base_image ontop of our window */
-        tigrBlit(window, base_image, 0, 0, 0, 0, base_image->w, base_image->h);
+        /* Game ticks every 60 frames */
+        if(!frame_number) {
+          /* Move base_image ontop of our window */
+          tigrBlit(window, base_image, 0, 0, 0, 0, base_image->w, base_image->h);
 
-        fillCircle(base_image, turtle_position, 5, {255,0,0,255}, NULL);
+          fillCircle(base_image, turtle_position, turtle_size, {255,0,0,255}, NULL);
 
-        if(move_turtle) {
-            vec2f dir = turtle_target_position;
-            dir = (dir - turtle_position).normalize();
-            turtle_position += dir;
-            // check if tutrle_pos == target_pos then trigger and interrupt and stop moving
-        }
+          if(move_turtle) {
+            move_to_target(&t);
+          }
 
-        /* We have to run tigrUpdate if we want our window to take input */
-        if(frame_number) {
-            tigrUpdate(window);
-           // std::this_thread::sleep_for(std::chrono::milliseconds(10));
+          tigrUpdate(window);
+          // std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
 
         frame_number = (frame_number + 1) % 60;
@@ -179,6 +178,20 @@ int main(int argc, char *argv[]) {
 
     tigrFree(window);
     return EXIT_SUCCESS;
+}
+
+void move_to_target(teenyat *t) {
+    vec2f dir = turtle_target_position;
+    dir = (dir - turtle_position).normalize();
+    turtle_position += dir;
+    float distX = turtle_target_position.x - turtle_position.x;
+    float distY = turtle_target_position.y - turtle_position.y;
+    float distance = std::sqrt( (distX*distX) + (distY*distY) );
+    if(distance < turtle_size + turtle_size) {
+        turtle_position = turtle_target_position;
+        move_turtle = false;
+        tny_external_interrupt(t, 0);
+    }
 }
 
 void bus_read(teenyat *t, tny_uword addr, tny_word *data, uint16_t *delay) {
