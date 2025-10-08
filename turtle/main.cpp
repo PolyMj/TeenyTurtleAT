@@ -159,15 +159,12 @@ int main(int argc, char *argv[]) {
         /* Move base_image ontop of our window */
         tigrBlit(window, base_image, 0, 0, 0, 0, base_image->w, base_image->h);
 
-        fillCircle(base_image, turtle_position.x, turtle_position.y, 5, {255,0,0,255}, NULL);
+        fillCircle(base_image, turtle_position, 5, {255,0,0,255}, NULL);
 
         if(move_turtle) {
-            vec2 dir = turtle_target_position;
-            dir.x = dir.x - turtle_position.x;
-            dir.y = dir.y - turtle_position.y;
-            dir = dir.normalize();
-            turtle_position.x += dir.x;
-            turtle_position.y += dir.y;
+            vec2f dir = turtle_target_position;
+            dir = (dir - turtle_position).normalize();
+            turtle_position += dir;
             // check if tutrle_pos == target_pos then trigger and interrupt and stop moving
         }
 
