@@ -14,7 +14,7 @@ template<>
 struct VecLength<double> { using type = double; }; 
 
 
-template<typename T>
+template<typename T = float>
 struct vec2
 {
     T x{}, y{};
@@ -30,21 +30,13 @@ struct vec2
     template<typename U>
     auto operator+(vec2<U> &o) const -> vec2<decltype(T{} + U{})>
     {
-        return
-        {
-            x - o.x,
-            y - o.y
-        };
+        return { (x + o.x), (y + o.y) };
     }
 
     template<typename U>
     auto operator-(vec2<U> o) const -> vec2<decltype(T{} - U{})>
     {
-        return
-        {
-            x - o.x,
-            y - o.y
-        };
+        return { (x - o.x), (y - o.y) };
     }
 
     // Dot product
@@ -58,7 +50,47 @@ struct vec2
     template<typename U>
     auto operator*(U s) const -> vec2<decltype(T{} * U{})>
     {
-        return (x*s) + (y*s);
+        return { (x*s), (y*s) };
+    }
+
+    template<typename U>
+    vec2<T>& operator=(vec2<U> &o)
+    {
+        x = o.x;
+        y = o.y;
+        return *this;
+    }
+
+    template<typename U>
+    bool operator==(vec2<U> &o)
+    {
+        return (x == o.x) && (y == o.y);
+    }
+
+    template<typename U>
+    vec2<T>& operator+=(vec2<U> &o)
+    {
+        x += o.x;
+        y += o.y;
+        return *this;
+    }
+
+
+    template<typename U>
+    vec2<T>& operator-=(vec2<U> &o)
+    {
+        x -= o.x;
+        y -= o.y;
+        return *this;
+    }
+
+    // Scalar multiplication
+    template<typename U>
+    vec2<T>& operator*=(U s)
+    {
+        x *= s;
+        y *= s;
+        return *this;
     }
 
     // Euclidian length
@@ -69,10 +101,7 @@ struct vec2
     // Returns a normalized version of the vector
     auto normalize() const -> vec2<typename VecLength<T>::type> { 
         auto len = length(); 
-        return { 
-            x / len, 
-            y / len
-        }; 
+        return { (x / len), (y / len) }; 
     }; 
 
     void normalize_self()

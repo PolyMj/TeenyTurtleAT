@@ -3,7 +3,7 @@
 
 using namespace std;
 
-typedef void(*LINE_PLOT_CALLBACK)(Tigr *img, uint16_t x, uint16_t y);
+typedef void(*LINE_PLOT_CALLBACK)(Tigr *img, vec2p pos);
 
 // Draws a line
     // plot is the callback function called for each x,y, position on the line
@@ -15,4 +15,4 @@ void verticalLine(Tigr *img, uint16_t x1, uint16_t y1, uint16_t y2, TPixel color
 
 void horizontalLine(Tigr *img, uint16_t x1, uint16_t y1, uint16_t x2, TPixel color, LINE_PLOT_CALLBACK plot = NULL);
 
-void fillCircle(Tigr *img, uint16_t cx, uint16_t cy, uint16_t r, TPixel color, LINE_PLOT_CALLBACK plot = NULL);
+void fillCircle(Tigr *img, vec2p c, uint16_t r, TPixel color, LINE_PLOT_CALLBACK plot = NULL);
