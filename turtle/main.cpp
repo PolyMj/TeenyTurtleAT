@@ -196,15 +196,28 @@ void move_to_target(teenyat *t) {
 
 void bus_read(teenyat *t, tny_uword addr, tny_word *data, uint16_t *delay) {
     switch(addr) {
-    case TURTLE_X:
-        data->u = turtle_position.x;
-        break;
-    case TURTLE_Y:
-        data->u = turtle_position.y;
-        break;
+        case TURTLE_X:
+            data->u = turtle_position.x;
+            break;
+        case TURTLE_Y:
+            data->u = turtle_position.y;
+            break;
+        case DETECT: {
+            int x = (int)turtle_position.x;
+            int y = (int)turtle_position.y;
+            
+            TPixel pixel = tigrGet(base_image, x, y);
+            
+            // Convert 8-bit RGB to 5-6-5 format
+            uint16_t r = (pixel.r >> 3) & 0x1F;  // 5 bits for red
+            uint16_t g = (pixel.g >> 2) & 0x3F;  // 6 bits for green
+            uint16_t b = (pixel.b >> 3) & 0x1F;  // 5 bits for blue
+            
+            // Pack into RGB565: RRRRRGGGGGGBBBBB
+            data->u = (r << 11) | (g << 5) | b;
+            break;
+        }
     }
-    return;
-
     return;
 }
 
@@ -214,6 +227,15 @@ void bus_write(teenyat *t, tny_uword addr, tny_word data, uint16_t *delay) {
           move_turtle = true;
         }
         break;
+        case PEN_UP: {
+            pen_down = false;
+            break;
+        }
+        case PEN_DOWN: {
+            pen_down = true;
+            break;
+        }
+        
     }
     return;
 }
