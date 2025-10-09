@@ -1,4 +1,4 @@
-CFLAGS += -I.. -I./include -O3
+CFLAGS += -I.. -I./include -O3 -Wno-narrowing
 CPPFLAGS += $(CFLAGS) --std=c++17
 ifeq ($(OS),Windows_NT)
 	LDFLAGS += -s -lopengl32 -lgdi32

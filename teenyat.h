@@ -113,9 +113,9 @@ typedef void(*TNY_PORT_CHANGE_FNPTR)(teenyat *t, bool is_port_a, tny_word port);
 
 #define TNY_INTERRUPT_VECTOR_TABLE_START 0x8E00
 #define TNY_INTERRUPT_VECTOR_TABLE_END 0x8E0F
+#define TNY_INTERRUPT_CNT (TNY_INTERRUPT_VECTOR_TABLE_END - TNY_INTERRUPT_VECTOR_TABLE_START + 1)
 #define TNY_INTERRUPT_ENABLE_REGISTER 0x8E10
 #define TNY_INTERRUPT_QUEUE_REGISTER 0x8E11
-#define TNY_INTERRUPT_VECTOR_TABLE_SIZE 0x10  /* 16 possible addresses */
 
 
 #define TNY_PERIPHERAL_BASE_ADDRESS 0x9000
@@ -128,6 +128,14 @@ typedef void(*TNY_PORT_CHANGE_FNPTR)(teenyat *t, bool is_port_a, tny_word port);
 #define TNY_BUS_EXTERNAL_DELAY_ADJUST 2
 
 #define TNY_DEFAULT_PACE_CNT 500
+
+typedef struct alu_flags {
+	bool greater : 1;
+	bool less    : 1;
+	bool equals  : 1;
+	bool carry   : 1;
+	int reserved: 12;
+} alu_flags;
 
 union tny_word {
 	struct {
@@ -190,7 +198,7 @@ struct teenyat {
 	/** copy of original bin file for resets */
 	tny_word bin_image[TNY_RAM_SIZE];
     /** The 16 addresses in which we can jump to in ram for interrupts */
-    tny_word interrupt_vector_table[TNY_INTERRUPT_VECTOR_TABLE_SIZE];
+    tny_word interrupt_vector_table[TNY_INTERRUPT_CNT];
 	/**
 	 * Registers...
 	 *
@@ -220,7 +228,7 @@ struct teenyat {
      * Greater is set/cleared if CMP or ALU result is positive and non-zero
      *
      **/
-    tny_word flags;
+    alu_flags flags;
 	/**
 	 * System calllback function to handle TeenyAT read requests
 	 */
@@ -233,7 +241,7 @@ struct teenyat {
 	 * The number of remaining cycles to delay to simulate the cost of the
 	 * previous instruction.
 	 */
-	unsigned int delay_cycles;
+	uint64_t delay_cycles;
 	/**
 	 * The held values on port A
 	 */
@@ -277,7 +285,7 @@ struct teenyat {
 	 * These are the address & flags we should preserve during an interrupt
 	 */
 	tny_word interrupt_return_address;
-	tny_word interrupt_return_flags;
+	alu_flags interrupt_return_flags;
 
 	/**
 	 * Each teenyat instance has a unique random number generator stream,
@@ -358,6 +366,15 @@ struct teenyat {
 #define TNY_REG_C    5
 #define TNY_REG_D    6
 #define TNY_REG_E    7
+
+#define TNY_XINT0    0
+#define TNY_XINT1    1
+#define TNY_XINT2    2
+#define TNY_XINT3    3
+#define TNY_XINT4    4
+#define TNY_XINT5    5
+#define TNY_XINT6    6
+#define TNY_XINT7    7
 
 /**
  * @brief
