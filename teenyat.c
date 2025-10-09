@@ -41,9 +41,9 @@ tny_uword tny_random(teenyat *t);
 uint64_t  tny_calibrate_1_MHZ(void);
 
 static void set_elg_flags(teenyat *t, tny_sword alu_result) {
-	t->flags.inst_flags.equals = (alu_result == 0);
-	t->flags.inst_flags.less = (alu_result >> 15) & 1;
-	t->flags.inst_flags.greater = (alu_result > 0);
+	t->flags.equals  = (alu_result == 0);
+	t->flags.less    = (alu_result >> 15) & 1;
+	t->flags.greater = (alu_result > 0);
 
 	return;
 }
@@ -180,10 +180,10 @@ bool tny_reset(teenyat *t) {
 	t->reg[TNY_REG_D].u = 0;
 	t->reg[TNY_REG_E].u = 0;
 
-	t->flags.inst_flags.carry = false;
-	t->flags.inst_flags.equals = false;
-	t->flags.inst_flags.less = false;
-	t->flags.inst_flags.greater = false;
+	t->flags.carry   = false;
+	t->flags.equals  = false;
+	t->flags.less    = false;
+	t->flags.greater = false;
 
 	/* "instruction" and "immediate" members do not need initialization */
 
@@ -204,7 +204,10 @@ bool tny_reset(teenyat *t) {
 	t->interrupt_enable_register.u = 0;
 	t->interrupt_queue_register.u  = 0;
 	t->interrupt_return_address.u  = 0;
-	t->interrupt_return_flags.u    = 0;
+	t->interrupt_return_flags.carry   = false;
+	t->interrupt_return_flags.equals  = false;
+	t->interrupt_return_flags.less    = false;
+	t->interrupt_return_flags.greater = false;
 	/* Maybe dont memset? could simulate randomness... */
 	memset(t->interrupt_vector_table, 0, sizeof(t->interrupt_vector_table));
 
@@ -348,7 +351,7 @@ void handle_interrupts(teenyat *t) {
 		tny_uword ivt_index = tny_get_interrupt_index(INT);  // get the index into the ivt
 		/* preserve our old program counter and flags */
 		t->interrupt_return_address.u = t->reg[TNY_REG_PC].u;
-		t->interrupt_return_flags.u = t->flags.u;
+		t->interrupt_return_flags = t->flags;
 		/* jump to the corresponding ISR address */
 		t->reg[TNY_REG_PC].u = t->interrupt_vector_table[ivt_index].u;
 		t->control_status_register.csr.interrupt_enable = 0;  // disable interrupts
@@ -499,6 +502,10 @@ void tny_clock(teenyat *t) {
 			break;
 		case TNY_OPCODE_STR:
 			{
+				/*
+				 * To promote student use of registers, all bus operations,
+				 * including RAM access comes with an extra penalty.
+				 */
 				t->delay_cycles += TNY_BUS_DELAY;
 
 				tny_uword addr = t->reg[reg1].s + immed;
@@ -559,12 +566,6 @@ void tny_clock(teenyat *t) {
 					}
 					break;
 				}
-
-				/*
-				 * To promote student use of registers, all bus operations,
-				 * including RAM access comes with an extra penalty.
-				 */
-				t->delay_cycles += TNY_BUS_DELAY;
 			}
 			break;
 		case TNY_OPCODE_PSH:
@@ -629,19 +630,19 @@ void tny_clock(teenyat *t) {
 			break;
 		case TNY_OPCODE_ADD:
 			tmp = (uint32_t)(t->reg[reg1].s) + (uint32_t)((uint32_t)(t->reg[reg2].s) + (uint32_t)immed);
-			t->flags.inst_flags.carry = tmp & (1 << 16);
+			t->flags.carry = tmp & (1 << 16);
 			t->reg[reg1].s = tmp;
 			set_elg_flags(t, t->reg[reg1].s);
 			break;
 		case TNY_OPCODE_SUB:
 			tmp = (uint32_t)(t->reg[reg1].s) - (uint32_t)((uint32_t)(t->reg[reg2].s) + (uint32_t)immed);
-			t->flags.inst_flags.carry = tmp & (1 << 16);
+			t->flags.carry = tmp & (1 << 16);
 			t->reg[reg1].s = tmp;
 			set_elg_flags(t, t->reg[reg1].s);
 			break;
 		case TNY_OPCODE_MPY:
 			tmp = (uint32_t)(t->reg[reg1].s) * (uint32_t)((uint32_t)(t->reg[reg2].s) + (uint32_t)immed);
-			t->flags.inst_flags.carry = tmp & (1 << 16);
+			t->flags.carry = tmp & (1 << 16);
 			t->reg[reg1].s = tmp;
 			set_elg_flags(t, t->reg[reg1].s);
 			break;
@@ -683,15 +684,15 @@ void tny_clock(teenyat *t) {
 					bits_to_shift *= -1;
 					if(bits_to_shift <= 15) {
 						t->reg[reg1].u <<= bits_to_shift - 1;
-						t->flags.inst_flags.carry = (t->reg[reg1].u >> 15) & 1;
+						t->flags.carry = (t->reg[reg1].u >> 15) & 1;
 						t->reg[reg1].u <<= 1;
 					}
 					else {
 						if(bits_to_shift == 16) {
-							t->flags.inst_flags.carry = t->reg[reg1].u & (1 << 0);
+							t->flags.carry = t->reg[reg1].u & (1 << 0);
 						}
 						else {
-							t->flags.inst_flags.carry = 0;
+							t->flags.carry = 0;
 						}
 						t->reg[reg1].u = 0;
 					}
@@ -700,15 +701,15 @@ void tny_clock(teenyat *t) {
 					/* shift right */
 					if(bits_to_shift <= 15) {
 						t->reg[reg1].u >>= bits_to_shift - 1;
-						t->flags.inst_flags.carry = t->reg[reg1].u & (1 << 0);
+						t->flags.carry = t->reg[reg1].u & (1 << 0);
 						t->reg[reg1].u >>= 1;
 					}
 					else {
 						if(bits_to_shift == 16) {
-							t->flags.inst_flags.carry = (t->reg[reg1].u >> 15) & 1;
+							t->flags.carry = (t->reg[reg1].u >> 15) & 1;
 						}
 						else {
-							t->flags.inst_flags.carry = 0;
+							t->flags.carry = 0;
 						}
 						t->reg[reg1].u = 0;
 					}
@@ -726,27 +727,27 @@ void tny_clock(teenyat *t) {
 					tny_uword main_part = t->reg[reg1].u << bits_to_rotate;
 					tny_uword wrap_part = t->reg[reg1].u >> (16 - bits_to_rotate);
 					t->reg[reg1].u = main_part | wrap_part;
-					t->flags.inst_flags.carry = t->reg[reg1].u & (1 << 0);
+					t->flags.carry = t->reg[reg1].u & (1 << 0);
 				}
 				else if(bits_to_rotate > 0) {
 					/* rotate right */
 					tny_uword main_part = t->reg[reg1].u >> bits_to_rotate;
 					tny_uword wrap_part = t->reg[reg1].u << (16 - bits_to_rotate);
 					t->reg[reg1].u = main_part | wrap_part;
-					t->flags.inst_flags.carry = (t->reg[reg1].u >> 15) & 1;
+					t->flags.carry = (t->reg[reg1].u >> 15) & 1;
 				}
 				set_elg_flags(t, t->reg[reg1].s);
 			}
 			break;
 		case TNY_OPCODE_NEG:
 			tmp = (uint32_t)0 - (uint32_t)(t->reg[reg1].s);
-			t->flags.inst_flags.carry = tmp & (1 << 16);
+			t->flags.carry = tmp & (1 << 16);
 			t->reg[reg1].s = tmp;
 			set_elg_flags(t, t->reg[reg1].s);
 			break;
 		case TNY_OPCODE_CMP:
 			tmp = (uint32_t)(t->reg[reg1].s) - (uint32_t)((uint32_t)(t->reg[reg2].s) + (uint32_t)immed);
-			t->flags.inst_flags.carry = tmp & (1 << 16);
+			t->flags.carry = tmp & (1 << 16);
 			set_elg_flags(t, (tny_sword)tmp);
 			break;
 		case TNY_OPCODE_JMP:
@@ -755,19 +756,19 @@ void tny_clock(teenyat *t) {
 				bool condition_satisfied = false;
 				if(carry) {
 					flags_checked = true;
-					condition_satisfied |= t->flags.inst_flags.carry;
+					condition_satisfied |= t->flags.carry;
 				}
 				if(equals) {
 					flags_checked = true;
-					condition_satisfied |= t->flags.inst_flags.equals;
+					condition_satisfied |= t->flags.equals;
 				}
 				if(less) {
 					flags_checked = true;
-					condition_satisfied |= t->flags.inst_flags.less;
+					condition_satisfied |= t->flags.less;
 				}
 				if(greater) {
 					flags_checked = true;
-					condition_satisfied |= t->flags.inst_flags.greater;
+					condition_satisfied |= t->flags.greater;
 				}
 				if(!flags_checked || condition_satisfied) {
 					set_pc(t, t->reg[reg1].s + immed);
@@ -776,7 +777,7 @@ void tny_clock(teenyat *t) {
 			break;
 		case TNY_OPCODE_LUP:
 			tmp = (uint32_t)(t->reg[reg1].s) - 1;
-			t->flags.inst_flags.carry = tmp & (1 << 16);
+			t->flags.carry = tmp & (1 << 16);
 			t->reg[reg1].s = tmp;
 			set_elg_flags(t, (tny_sword)tmp);
 			if(tmp != 0) {
@@ -785,10 +786,15 @@ void tny_clock(teenyat *t) {
 			break;
 		case TNY_OPCODE_DLY:
 			{
-				tny_sword delay_cnt = t->reg[reg2].s + immed;
-				if(delay_cnt >= 1) {
+				tny_uword delay_prescale = t->reg[reg1].u;
+				if(delay_prescale == 0) {
+					delay_prescale = 1;
+				}
+				tny_uword delay_cnt = (tny_uword)(t->reg[reg2].s + immed);
+				uint64_t prescaled_delay_cycles = delay_prescale * delay_cnt;
+				if(prescaled_delay_cycles >= 1) {
 					/* current instruction already 1 cycle */
-					t->delay_cycles = delay_cnt - 1;
+					t->delay_cycles += prescaled_delay_cycles - 1;
 				}
 			}
 			break;
@@ -808,7 +814,7 @@ void tny_clock(teenyat *t) {
 			break;
 		case TNY_OPCODE_RTI:
 			set_pc(t, t->interrupt_return_address.u);  // restore pc
-			t->flags.u = t->interrupt_return_flags.u;  // restore flags
+			t->flags = t->interrupt_return_flags;     // restore flags
 			t->control_status_register.csr.interrupt_enable = 1;  // reenable interrupts
 			break;
 		default:
