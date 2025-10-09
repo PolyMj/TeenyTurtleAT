@@ -159,16 +159,33 @@ void bus_read(teenyat *t, tny_uword addr, tny_word *data, uint16_t *delay) {
     
     switch(addr) {
     case TURTLE_X:
-        data->u = turtle_x;  
+        data->u = turtle_position.x;  
         break;
     case TURTLE_Y: 
-        data->u = turtle_y;
+        data->u = turtle_position.y;
         break;
-    }
+
+    case SET_X:
+        data->u = turtle_target.x;
+        break;
+        
+    case SET_Y: 
+        data->u = turtle_target.y;
+        break;
     return;
+    }
+    
 
 }
 
 void bus_write(teenyat *t, tny_uword addr, tny_word data, uint16_t *delay) {
+
+    switch(addr) {
+    case SET_X:
+        turtle_target.x = data.u;
+        break;
+    case SET_Y: 
+        turtle_target.y = data.u;
+        break;
     return;
 }
