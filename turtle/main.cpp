@@ -1,7 +1,10 @@
+#define _USE_MATH_DEFINES
+
 #include <iostream>
 #include <cstdlib>
 #include <thread>
 #include <chrono>
+#include <cmath>
 #include "vec.hpp"
 #include "tigr.h"
 #include "draw.hpp"
@@ -99,9 +102,12 @@
 void bus_read(teenyat *t, tny_uword addr, tny_word *data, uint16_t *delay);
 void bus_write(teenyat *t, tny_uword addr, tny_word data, uint16_t *delay);
 void move_to_target(teenyat *t);
+void rotate_turtle(Tigr* dest, Tigr* turtle, float cx, float cy, float angleDegrees);
+void angle_to_rotate();
 
 Tigr* window;
 Tigr* base_image;
+Tigr* turtle_image;
 int   windowWidth = 640;
 int   windowHeight = 500;
 
@@ -149,28 +155,29 @@ int main(int argc, char *argv[]) {
     tigrClear(window, tigrRGB(255, 255, 255));
     tigrClear(base_image, tigrRGB(255, 255, 255));
 
-    if(argc == 3) {
-        const char* img_name = argv[2];
-        base_image = tigrLoadImage(img_name);
-        if(!base_image) tigrError(0, "Could not load image file");
+    turtle_image = tigrLoadImage("Turtle.png");
+    if(!turtle_image) {
+        tigrError(0, "Could not load Turtle.png");
     }
+
+    angle_to_rotate();
 
     while(!tigrClosed(window) && !tigrKeyDown(window, TK_ESCAPE)) {
         tny_clock(&t);
 
         /* Game ticks every 60 frames */
         if(!frame_number) {
-          /* Move base_image ontop of our window */
-          tigrBlit(window, base_image, 0, 0, 0, 0, base_image->w, base_image->h);
+            /* Move base_image ontop of our window */
+            tigrBlit(window, base_image, 0, 0, 0, 0, base_image->w, base_image->h);
 
-          fillCircle(base_image, turtle_position, turtle_size, {255,0,0,255}, NULL);
+            rotate_turtle(base_image, turtle_image, turtle_position.x, turtle_position.y, turtle_heading);
 
-          if(move_turtle) {
-            move_to_target(&t);
-          }
+            if(move_turtle) {
+                move_to_target(&t);
+            }
 
-          tigrUpdate(window);
-          // std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            tigrUpdate(window);
+            // std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
 
         frame_number = (frame_number + 1) % 60;
@@ -194,17 +201,100 @@ void move_to_target(teenyat *t) {
     }
 }
 
+void angle_to_rotate() {
+    vec2 dir = turtle_target_position - turtle_position;
+    float angle_adgustment = 270.0f; // this is to orient the image correctly
+    float target_angle = atan2(dir.y, dir.x) * (180.0f / M_PI) - angle_adgustment;  // Angle to target in degrees
+    
+    // Calculate the difference between target angle and current heading
+    float angle_diff = target_angle - turtle_heading;
+    
+    // Normalize to [-180, 180] range for shortest rotation
+    while(angle_diff > 180.0f) angle_diff -= 360.0f;
+    while(angle_diff < -180.0f) angle_diff += 360.0f;
+    
+    // Now turtle_heading should be updated by angle_diff
+    turtle_heading += angle_diff;
+    
+    // Normalize turtle_heading to [0, 360)
+    while(turtle_heading >= 360.0f) turtle_heading -= 360.0f;
+    while(turtle_heading < 0.0f) turtle_heading += 360.0f;
+}
+
+void rotate_turtle(Tigr* dest, Tigr* turtle, float cx, float cy, float angleDegrees) {
+    float angle = angleDegrees * (M_PI / 180.0f);
+    float cosA = cos(angle);
+    float sinA = sin(angle);
+
+    int w = turtle->w;
+    int h = turtle->h;
+    int halfW = w / 2;
+    int halfH = h / 2;
+
+    // Calculate bounding box for rotated image
+    float corners[4][2] = {
+        {-halfW, -halfH}, {halfW, -halfH},
+        {halfW, halfH}, {-halfW, halfH}
+    };
+    
+    float minX = 0, maxX = 0, minY = 0, maxY = 0;
+    for(int i = 0; i < 4; i++) {
+        float rotX = corners[i][0] * cosA - corners[i][1] * sinA;
+        float rotY = corners[i][0] * sinA + corners[i][1] * cosA;
+        if(i == 0 || rotX < minX) minX = rotX;
+        if(i == 0 || rotX > maxX) maxX = rotX;
+        if(i == 0 || rotY < minY) minY = rotY;
+        if(i == 0 || rotY > maxY) maxY = rotY;
+    }
+
+    // Iterate through destination pixels (reverse mapping)
+    for(int dy = (int)minY; dy <= (int)maxY; dy++) {
+        for(int dx = (int)minX; dx <= (int)maxX; dx++) {
+            // Reverse rotate to find source pixel
+            float srcX = dx * cosA + dy * sinA;
+            float srcY = -dx * sinA + dy * cosA;
+            
+            // Add offset to center
+            int sx = (int)(srcX + halfW + 0.5f);
+            int sy = (int)(srcY + halfH + 0.5f);
+            
+            // Check bounds
+            if(sx >= 0 && sx < w && sy >= 0 && sy < h) {
+                TPixel p = tigrGet(turtle, sx, sy);
+                
+                if(p.a > 0) {
+                    tigrPlot(dest, (int)(cx + dx), (int)(cy + dy), p);
+                }
+            }
+        }
+    }
+}
+
+
 void bus_read(teenyat *t, tny_uword addr, tny_word *data, uint16_t *delay) {
     switch(addr) {
-    case TURTLE_X:
-        data->u = turtle_position.x;
-        break;
-    case TURTLE_Y:
-        data->u = turtle_position.y;
-        break;
+        case TURTLE_X:
+            data->u = turtle_position.x;
+            break;
+        case TURTLE_Y:
+            data->u = turtle_position.y;
+            break;
+        case DETECT: {
+            int x = (int)turtle_position.x;
+            int y = (int)turtle_position.y;
+            
+            TPixel pixel = tigrGet(base_image, x, y);
+            
+            // Convert 8-bit RGB to 5-6-5 format
+            uint16_t r = (pixel.r >> 3) & 0x1F;  // 5 bits for red
+            uint16_t g = (pixel.g >> 2) & 0x3F;  // 6 bits for green
+            uint16_t b = (pixel.b >> 3) & 0x1F;  // 5 bits for blue
+            
+            // Pack into RGB565: RRRRR GGGGGG BBBBB
+            data->u = (r << 11) | (g << 5) | b;
+            break;
+        }
     }
-    return;
-
     return;
 }
 
@@ -214,7 +304,20 @@ void bus_write(teenyat *t, tny_uword addr, tny_word data, uint16_t *delay) {
           move_turtle = true;
         }
         break;
+        case FACE_XY: {
+            angle_to_rotate();
+            rotate_turtle(base_image, turtle_image, turtle_position.x, turtle_position.y, turtle_heading);
+            break;
+        }
+        case PEN_UP: {
+            pen_down = false;
+            break;
+        }
+        case PEN_DOWN: {
+            pen_down = true;
+            break;
+        }
+        
     }
     return;
 }
-
