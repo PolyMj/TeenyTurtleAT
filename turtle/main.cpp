@@ -204,17 +204,17 @@ void angle_to_rotate() {
     vec2 dir = turtle_target_position - turtle_position;
     float angle_adgustment = 270.0f; // this is to orient the image correctly
     float target_angle = atan2(dir.y, dir.x) * (180.0f / M_PI) - angle_adgustment;  // Angle to target in degrees
-    
+
     // Calculate the difference between target angle and current heading
     float angle_diff = target_angle - turtle_heading;
-    
+
     // Normalize to [-180, 180] range for shortest rotation
     while(angle_diff > 180.0f) angle_diff -= 360.0f;
     while(angle_diff < -180.0f) angle_diff += 360.0f;
-    
+
     // Now turtle_heading should be updated by angle_diff
     turtle_heading += angle_diff;
-    
+
     // Normalize turtle_heading to [0, 360)
     while(turtle_heading >= 360.0f) turtle_heading -= 360.0f;
     while(turtle_heading < 0.0f) turtle_heading += 360.0f;
@@ -235,7 +235,7 @@ void rotate_turtle(Tigr* dest, Tigr* turtle, float cx, float cy, float angleDegr
         {-halfW, -halfH}, {halfW, -halfH},
         {halfW, halfH}, {-halfW, halfH}
     };
-    
+
     float minX = 0, maxX = 0, minY = 0, maxY = 0;
     for(int i = 0; i < 4; i++) {
         float rotX = corners[i][0] * cosA - corners[i][1] * sinA;
@@ -252,15 +252,15 @@ void rotate_turtle(Tigr* dest, Tigr* turtle, float cx, float cy, float angleDegr
             // Reverse rotate to find source pixel
             float srcX = dx * cosA + dy * sinA;
             float srcY = -dx * sinA + dy * cosA;
-            
+
             // Add offset to center
             int sx = (int)(srcX + halfW + 0.5f);
             int sy = (int)(srcY + halfH + 0.5f);
-            
+
             // Check bounds
             if(sx >= 0 && sx < w && sy >= 0 && sy < h) {
                 TPixel p = tigrGet(turtle, sx, sy);
-                
+
                 if(p.a > 0) {
                     tigrPlot(dest, (int)(cx + dx), (int)(cy + dy), p);
                 }
@@ -298,8 +298,8 @@ void bus_read(teenyat *t, tny_uword addr, tny_word *data, uint16_t *delay) {
             break;
         case DETECT:
             // Store a 16bit version of the pixel color in the register
-            data->u = colorTo16b(tigrGet(base_image, 
-                (int)turtle_position.x, 
+            data->u = colorTo16b(tigrGet(base_image,
+                (int)turtle_position.x,
                 (int)turtle_position.y)
             );
             break;
