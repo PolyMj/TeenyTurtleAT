@@ -171,11 +171,9 @@ int main(int argc, char *argv[]) {
             tigrBlit(window, base_image, 0, 0, 0, 0, base_image->w, base_image->h);
 
             rotate_turtle(base_image, turtle_image, turtle_position.x, turtle_position.y, turtle_heading);
-
             if(move_turtle) {
                 move_to_target(&t);
             }
-
             tigrUpdate(window);
             // std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
@@ -188,16 +186,17 @@ int main(int argc, char *argv[]) {
 }
 
 void move_to_target(teenyat *t) {
-    vec2f dir = turtle_target_position;
-    dir = (dir - turtle_position).normalize();
-    turtle_position += dir;
-    float distX = turtle_target_position.x - turtle_position.x;
-    float distY = turtle_target_position.y - turtle_position.y;
-    float distance = std::sqrt( (distX*distX) + (distY*distY) );
-    if(distance < turtle_size + turtle_size) {
+    float distance = (turtle_position - turtle_target_position).length();
+    if (distance <= 1.0) {
         turtle_position = turtle_target_position;
         move_turtle = false;
         tny_external_interrupt(t, 0);
+    }
+    else
+    {
+        vec2f dir = turtle_target_position;
+        dir = (dir - turtle_position).normalize();
+        turtle_position += dir;
     }
 }
 
@@ -271,6 +270,24 @@ void rotate_turtle(Tigr* dest, Tigr* turtle, float cx, float cy, float angleDegr
 }
 
 
+uint16_t colorTo16b(TPixel c24b) {
+    uint16_t r = (c24b.r >> 3) & 0x1F;  // 5 bits for red
+    uint16_t g = (c24b.g >> 2) & 0x3F;  // 6 bits for green
+    uint16_t b = (c24b.b >> 3) & 0x1F;  // 5 bits for blue
+    return (r << 11) | (g << 5) | b;
+}
+
+TPixel colorTo24b(uint16_t c16b) {
+    unsigned char r = (c16b >> 11) & 0x1F; // 5 bits for red
+    unsigned char g = (c16b >>  5) & 0x3F; // 6 bits for green
+    unsigned char b = c16b & 0x1F; // 5 bits for blue
+    r <<= 3;
+    g <<= 2;
+    g <<= 3;
+    return {r,g,b,255};
+}
+
+
 void bus_read(teenyat *t, tny_uword addr, tny_word *data, uint16_t *delay) {
     switch(addr) {
         case TURTLE_X:
@@ -279,45 +296,44 @@ void bus_read(teenyat *t, tny_uword addr, tny_word *data, uint16_t *delay) {
         case TURTLE_Y:
             data->u = turtle_position.y;
             break;
-        case DETECT: {
-            int x = (int)turtle_position.x;
-            int y = (int)turtle_position.y;
-            
-            TPixel pixel = tigrGet(base_image, x, y);
-            
-            // Convert 8-bit RGB to 5-6-5 format
-            uint16_t r = (pixel.r >> 3) & 0x1F;  // 5 bits for red
-            uint16_t g = (pixel.g >> 2) & 0x3F;  // 6 bits for green
-            uint16_t b = (pixel.b >> 3) & 0x1F;  // 5 bits for blue
-            
-            // Pack into RGB565: RRRRR GGGGGG BBBBB
-            data->u = (r << 11) | (g << 5) | b;
+        case DETECT:
+            // Store a 16bit version of the pixel color in the register
+            data->u = colorTo16b(tigrGet(base_image, 
+                (int)turtle_position.x, 
+                (int)turtle_position.y)
+            );
             break;
-        }
+        case SET_X:
+            data->u = turtle_target_position.x;
+            break;
+        case SET_Y:
+            data->u = turtle_target_position.y;
+            break;
     }
     return;
 }
 
 void bus_write(teenyat *t, tny_uword addr, tny_word data, uint16_t *delay) {
-    switch(addr){
-        case GOTO_XY: {
-          move_turtle = true;
-        }
-        break;
-        case FACE_XY: {
+    switch(addr) {
+        case GOTO_XY:
+            move_turtle = true;
+            break;
+        case FACE_XY:
             angle_to_rotate();
             rotate_turtle(base_image, turtle_image, turtle_position.x, turtle_position.y, turtle_heading);
             break;
-        }
-        case PEN_UP: {
+        case PEN_UP:
             pen_down = false;
             break;
-        }
-        case PEN_DOWN: {
+        case PEN_DOWN:
             pen_down = true;
             break;
-        }
-        
+        case SET_X:
+            turtle_target_position.x = data.u;
+            break;
+        case SET_Y:
+            turtle_target_position.y = data.u;
+            break;
     }
     return;
 }

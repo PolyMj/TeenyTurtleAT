@@ -110,12 +110,13 @@ struct vec2
         x /= len;
         y /= len;
     }
-
-    friend ostream& operator<<(ostream& os, vec2& o) { 
-        os << "(" << o.x << "," << o.y << ")"; 
-        return os; 
-    }; 
 };
+
+template<typename T>
+ostream& operator<<(ostream& os, const vec2<T>& o) { 
+    os << "(" << o.x << "," << o.y << ")"; 
+    return os; 
+}; 
 
 using vec2f = vec2<float>;
 using vec2d = vec2<double>;
