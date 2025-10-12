@@ -115,11 +115,11 @@ vec2      turtle_position           = vec2(320.0f,250.0f);
 int       turtle_size               = 5;
 vec2      turtle_target_position    = vec2(0.0f,0.0f);
 double    turtle_heading            = 0.0f;
-TPixel    pen_color                 = {0,0,0,0};
+TPixel    pen_color                 = {0,0,0,255};
 int       pen_size                  = 5;
 bool      pen_down                  = false;
 bool      erase_mode                = false;
-bool      move_turtle               = true;
+bool      move_turtle               = false;
 
 int main(int argc, char *argv[]) {
     /* If only one parameter is provided then we treat it as the teenyat binary
@@ -170,10 +170,15 @@ int main(int argc, char *argv[]) {
             /* Move base_image ontop of our window */
             tigrBlit(window, base_image, 0, 0, 0, 0, base_image->w, base_image->h);
 
-            rotate_turtle(base_image, turtle_image, turtle_position.x, turtle_position.y, turtle_heading);
+            /* This draws onto the background */
+            if(pen_down) fillCircle(base_image, turtle_position, pen_size, pen_color, NULL);
+
+            /* We can just draw the turtle directly to the window as long as its after our base image drawing */
+            rotate_turtle(window, turtle_image, turtle_position.x, turtle_position.y, turtle_heading);
             if(move_turtle) {
                 move_to_target(&t);
             }
+
             tigrUpdate(window);
             // std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
@@ -320,13 +325,16 @@ void bus_write(teenyat *t, tny_uword addr, tny_word data, uint16_t *delay) {
             break;
         case FACE_XY:
             angle_to_rotate();
-            rotate_turtle(base_image, turtle_image, turtle_position.x, turtle_position.y, turtle_heading);
+            rotate_turtle(window, turtle_image, turtle_position.x, turtle_position.y, turtle_heading);
             break;
         case PEN_UP:
             pen_down = false;
             break;
         case PEN_DOWN:
             pen_down = true;
+            break;
+        case PEN_COLOR:
+            pen_color = colorTo24b(data.u);
             break;
         case SET_X:
             turtle_target_position.x = data.u;
