@@ -54,7 +54,7 @@ str [ CONTROL_STATUS_REGISTER ], rA
     mod rA, 501
     str [ SET_Y ], rA
     str [ PEN_UP ], rZ
-    lod rA, [ RAND ]
+    lod rA, [ RAND_BITS ]
     str [ PEN_COLOR ], rA
     mod rA, 2
     je !return

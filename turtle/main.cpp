@@ -99,6 +99,10 @@
 #define DETECT         0xE003
 #define SET_ERASER     0xE004
 
+#define TURTLE_INT_MOVE_DONE        TNY_XINT0
+#define TURTLE_INT_FACE_DONE        TNY_XINT1
+#define TURTLE_INT_COLOR_CHANGE     TNY_XINT2
+
 void bus_read(teenyat *t, tny_uword addr, tny_word *data, uint16_t *delay);
 void bus_write(teenyat *t, tny_uword addr, tny_word data, uint16_t *delay);
 void move_to_target(teenyat *t);
@@ -111,15 +115,21 @@ Tigr* turtle_image;
 int   windowWidth = 640;
 int   windowHeight = 500;
 
-vec2      turtle_position           = vec2(320.0f,250.0f);
+vec2f     turtle_position           = vec2(320.0f,250.0f);
+vec2f     turtle_last_position      = turtle_position;
 int       turtle_size               = 5;
-vec2      turtle_target_position    = vec2(0.0f,0.0f);
+vec2      turtle_target_position    = turtle_position;
 double    turtle_heading            = 0.0f;
 TPixel    pen_color                 = {0,0,0,255};
 int       pen_size                  = 5;
 bool      pen_down                  = false;
 bool      erase_mode                = false;
 bool      move_turtle               = false;
+uint16_t  last_bg_color             = 0;
+float     move_speed                = 1.0;
+
+// The turtle's "hitbox"
+const uint16_t turtle_radius        = 5;
 
 int main(int argc, char *argv[]) {
     /* If only one parameter is provided then we treat it as the teenyat binary
@@ -170,9 +180,6 @@ int main(int argc, char *argv[]) {
             /* Move base_image ontop of our window */
             tigrBlit(window, base_image, 0, 0, 0, 0, base_image->w, base_image->h);
 
-            /* This draws onto the background */
-            if(pen_down) fillCircle(base_image, turtle_position, pen_size, pen_color, NULL);
-
             /* We can just draw the turtle directly to the window as long as its after our base image drawing */
             rotate_turtle(window, turtle_image, turtle_position.x, turtle_position.y, turtle_heading);
             if(move_turtle) {
@@ -191,17 +198,24 @@ int main(int argc, char *argv[]) {
 }
 
 void move_to_target(teenyat *t) {
+    turtle_last_position = turtle_position;
+
     float distance = (turtle_position - turtle_target_position).length();
-    if (distance <= 1.0) {
+    if (distance <= move_speed) {
         turtle_position = turtle_target_position;
         move_turtle = false;
-        tny_external_interrupt(t, 0);
+        tny_external_interrupt(t, TURTLE_INT_MOVE_DONE);
     }
     else
     {
         vec2f dir = turtle_target_position;
         dir = (dir - turtle_position).normalize();
-        turtle_position += dir;
+        turtle_position += move_speed * dir;
+    }
+
+    /* This draws onto the background */
+    if(pen_down && turtle_position != turtle_last_position) {
+        line(base_image, turtle_last_position, turtle_position, pen_size, pen_color, NULL);
     }
 }
 
@@ -288,7 +302,7 @@ TPixel colorTo24b(uint16_t c16b) {
     unsigned char b = c16b & 0x1F; // 5 bits for blue
     r <<= 3;
     g <<= 2;
-    g <<= 3;
+    b <<= 3;
     return {r,g,b,255};
 }
 
