@@ -108,6 +108,7 @@ void bus_write(teenyat *t, tny_uword addr, tny_word data, uint16_t *delay);
 void move_to_target(teenyat *t);
 void rotate_turtle(Tigr* dest, Tigr* turtle, float cx, float cy, float angleDegrees);
 void angle_to_rotate();
+void normalize_angle();
 
 Tigr* window;
 Tigr* base_image;
@@ -219,6 +220,13 @@ void move_to_target(teenyat *t) {
     }
 }
 
+void normalize_angle() {
+    // Normalize turtle_heading to [0, 360)
+    while(turtle_heading >= 360.0f) turtle_heading -= 360.0f;
+    while(turtle_heading < 0.0f) turtle_heading += 360.0f;
+    return;
+}
+
 void angle_to_rotate() {
     vec2 dir = turtle_target_position - turtle_position;
     float angle_adgustment = 270.0f; // this is to orient the image correctly
@@ -233,10 +241,7 @@ void angle_to_rotate() {
 
     // Now turtle_heading should be updated by angle_diff
     turtle_heading += angle_diff;
-
-    // Normalize turtle_heading to [0, 360)
-    while(turtle_heading >= 360.0f) turtle_heading -= 360.0f;
-    while(turtle_heading < 0.0f) turtle_heading += 360.0f;
+    normalize_angle();
 }
 
 void rotate_turtle(Tigr* dest, Tigr* turtle, float cx, float cy, float angleDegrees) {
@@ -315,6 +320,9 @@ void bus_read(teenyat *t, tny_uword addr, tny_word *data, uint16_t *delay) {
         case TURTLE_Y:
             data->u = turtle_position.y;
             break;
+        case TURTLE_ANGLE:
+            data->u = turtle_heading;
+            break;
         case DETECT:
             // Store a 16bit version of the pixel color in the register
             data->u = colorTo16b(tigrGet(base_image,
@@ -355,6 +363,10 @@ void bus_write(teenyat *t, tny_uword addr, tny_word data, uint16_t *delay) {
             break;
         case SET_Y:
             turtle_target_position.y = data.u;
+            break;
+        case TURTLE_ANGLE:
+            turtle_heading = data.u;
+            normalize_angle();
             break;
     }
     return;
