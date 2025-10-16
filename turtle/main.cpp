@@ -98,6 +98,7 @@
 #define MOVE           0xE002
 #define DETECT         0xE003
 #define SET_ERASER     0xE004
+#define DETECT_AHEAD     0xE005
 
 #define TURTLE_INT_MOVE_DONE        TNY_XINT0
 #define TURTLE_INT_FACE_DONE        TNY_XINT1
@@ -109,6 +110,7 @@ void move_to_target(teenyat *t);
 void rotate_turtle(Tigr* dest, Tigr* turtle, float cx, float cy, float angleDegrees);
 void angle_to_rotate();
 void normalize_angle();
+vec2f detect();
 
 Tigr* window;
 Tigr* base_image;
@@ -132,6 +134,8 @@ float     move_speed                = 1.0;
 // The turtle's "hitbox"
 const uint16_t turtle_radius        = 5;
 
+const uint16_t detect_ahead_distance = 15;
+
 int main(int argc, char *argv[]) {
     /* If only one parameter is provided then we treat it as the teenyat binary
      * but if two are provided then the first parameter is the teenyat binary and
@@ -154,24 +158,30 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
-    if(argc == 3) {
-        const char* img_name = argv[2];
-        base_image = tigrLoadImage(img_name);
-        if(!base_image) tigrError(0, "Could not load image file");
-    }
-
     int frame_number = 0;
     window = tigrWindow(windowWidth, windowHeight, "TeenyAT Turtle", TIGR_FIXED);
     base_image = tigrBitmap(window->w, window->h);
     tigrClear(window, tigrRGB(255, 255, 255));
     tigrClear(base_image, tigrRGB(255, 255, 255));
 
-    turtle_image = tigrLoadImage("Turtle.png");
+
+    if(argc == 3) {
+        const char* img_name = argv[2];
+        base_image = tigrLoadImage(img_name);
+        if(!base_image) tigrError(0, "Could not load image file");
+    }
+
+    turtle_image = tigrLoadImage("Images/Turtle.png");
     if(!turtle_image) {
         tigrError(0, "Could not load Turtle.png");
     }
 
-    angle_to_rotate();
+    //For the maze
+    //turtle_position = vec2(28.0f,18.0f);
+    //turtle_target_position = vec2(640.0f,18.0f);
+    //angle_to_rotate();
+    //vec2f detect_pos = detect();
+
 
     while(!tigrClosed(window) && !tigrKeyDown(window, TK_ESCAPE)) {
         tny_clock(&t);
@@ -293,6 +303,22 @@ void rotate_turtle(Tigr* dest, Tigr* turtle, float cx, float cy, float angleDegr
     }
 }
 
+vec2f detect() {
+    // Calculate position 15 pixels ahead of turtle based on heading
+    float angle_rad = (turtle_heading + 270) * (M_PI / 180.0f);
+    float detect_x = turtle_position.x + detect_ahead_distance * cos(angle_rad);
+    float detect_y = turtle_position.y + detect_ahead_distance * sin(angle_rad);
+    
+    // Clamp to image bounds
+    int detect_xi = (int)detect_x;
+    int detect_yi = (int)detect_y;
+    if(detect_xi < 0) detect_xi = 0;
+    if(detect_yi < 0) detect_yi = 0;
+    if(detect_xi >= base_image->w) detect_xi = base_image->w - 1;
+    if(detect_yi >= base_image->h) detect_yi = base_image->h - 1;
+
+    return vec2(detect_xi, detect_yi);
+}
 
 uint16_t colorTo16b(TPixel c24b) {
     uint16_t r = (c24b.r >> 3) & 0x1F;  // 5 bits for red
@@ -321,7 +347,7 @@ void bus_read(teenyat *t, tny_uword addr, tny_word *data, uint16_t *delay) {
             data->u = turtle_position.y;
             break;
         case TURTLE_ANGLE:
-            data->u = turtle_heading;
+            data->u = turtle_heading + 270;
             break;
         case DETECT:
             // Store a 16bit version of the pixel color in the register
@@ -330,6 +356,11 @@ void bus_read(teenyat *t, tny_uword addr, tny_word *data, uint16_t *delay) {
                 (int)turtle_position.y)
             );
             break;
+        case DETECT_AHEAD: {
+            vec2f detect_pos = detect();
+            data->u = colorTo16b(tigrGet(base_image, detect_pos.x, detect_pos.y));
+            break;
+        }
         case SET_X:
             data->u = turtle_target_position.x;
             break;
