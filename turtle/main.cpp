@@ -105,7 +105,8 @@
 
 void bus_read(teenyat *t, tny_uword addr, tny_word *data, uint16_t *delay);
 void bus_write(teenyat *t, tny_uword addr, tny_word data, uint16_t *delay);
-void move_to_target(teenyat *t);
+void calc_move_to_target(teenyat *t); // Calculates movement vector information
+void do_move_to_target(); // Performs move and draws to image if need be
 void rotate_turtle(Tigr* dest, Tigr* turtle, float cx, float cy, float angleDegrees);
 void angle_to_rotate();
 void normalize_angle();
@@ -116,21 +117,23 @@ Tigr* turtle_image;
 int   windowWidth = 640;
 int   windowHeight = 500;
 
-vec2f     turtle_position           = vec2(320.0f,250.0f);
-vec2f     turtle_last_position      = turtle_position;
-int       turtle_size               = 5;
-vec2      turtle_target_position    = turtle_position;
+int   fps = 120;
+int   ticks_per_frame = 1e6 / fps;
+
+vec2f     turtle_position           = vec2f(320.0f,250.0f);
+vec2f     turtle_target_position    = turtle_position;
 double    turtle_heading            = 0.0f;
 TPixel    pen_color                 = {0,0,0,255};
 int       pen_size                  = 5;
 bool      pen_down                  = false;
 bool      erase_mode                = false;
 bool      move_turtle               = false;
-uint16_t  last_bg_color             = 0;
-float     move_speed                = 1.0;
+float     move_speed                = 3.0;
 
-// The turtle's "hitbox"
-const uint16_t turtle_radius        = 5;
+int       turtle_size               = 5;
+vec2f     turtle_last_position      = turtle_position;
+
+vec2f     turtle_subtarget_position; // Incrememtal position used during movement
 
 int main(int argc, char *argv[]) {
     /* If only one parameter is provided then we treat it as the teenyat binary
@@ -160,7 +163,6 @@ int main(int argc, char *argv[]) {
         if(!base_image) tigrError(0, "Could not load image file");
     }
 
-    int frame_number = 0;
     window = tigrWindow(windowWidth, windowHeight, "TeenyAT Turtle", TIGR_FIXED);
     base_image = tigrBitmap(window->w, window->h);
     tigrClear(window, tigrRGB(255, 255, 255));
@@ -173,51 +175,57 @@ int main(int argc, char *argv[]) {
 
     angle_to_rotate();
 
+    int ticks_left = 0;
     while(!tigrClosed(window) && !tigrKeyDown(window, TK_ESCAPE)) {
         tny_clock(&t);
+        --ticks_left;
 
         /* Game ticks every 60 frames */
-        if(!frame_number) {
+        if(ticks_left < 0) {
+            ticks_left = ticks_per_frame;
             /* Move base_image ontop of our window */
             tigrBlit(window, base_image, 0, 0, 0, 0, base_image->w, base_image->h);
 
             /* We can just draw the turtle directly to the window as long as its after our base image drawing */
             rotate_turtle(window, turtle_image, turtle_position.x, turtle_position.y, turtle_heading);
             if(move_turtle) {
-                move_to_target(&t);
+                calc_move_to_target(&t); // This isn't exactly how movement will be done, just making sure the functions work as intended
+                do_move_to_target();
             }
 
             tigrUpdate(window);
             // std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
-
-        frame_number = (frame_number + 1) % 60;
     }
 
     tigrFree(window);
     return EXIT_SUCCESS;
 }
 
-void move_to_target(teenyat *t) {
-    turtle_last_position = turtle_position;
-
-    float distance = (turtle_position - turtle_target_position).length();
-    if (distance <= move_speed) {
-        turtle_position = turtle_target_position;
+void calc_move_to_target(teenyat *t) {
+    vec2f dir = turtle_target_position - turtle_position;
+    // If the target position can be reached in one frame of movement, go there
+    if (dir.length() <= move_speed) {
+        turtle_subtarget_position = turtle_target_position;
         move_turtle = false;
         tny_external_interrupt(t, TURTLE_INT_MOVE_DONE);
     }
+    // Otherwise, set subtarget position to be slightly towards the target position
     else
     {
-        vec2f dir = turtle_target_position;
-        dir = (dir - turtle_position).normalize();
-        turtle_position += move_speed * dir;
+        dir = dir.normalize();
+        turtle_subtarget_position = turtle_position + move_speed * dir;
+    }
+}
+
+void do_move_to_target() {
+    // Draw line between current and new (subtarget) positions
+    if(pen_down && vec2p(turtle_position) != vec2p(turtle_subtarget_position)) {
+        line(base_image, turtle_position, turtle_subtarget_position, pen_size, pen_color, NULL);
     }
 
-    /* This draws onto the background */
-    if(pen_down && turtle_position != turtle_last_position) {
-        line(base_image, turtle_last_position, turtle_position, pen_size, pen_color, NULL);
-    }
+    // Update position
+    turtle_position = turtle_subtarget_position;
 }
 
 void normalize_angle() {
