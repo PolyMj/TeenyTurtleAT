@@ -128,6 +128,7 @@ int       pen_size                  = 5;
 bool      pen_down                  = false;
 bool      erase_mode                = false;
 bool      move_turtle               = false;
+bool      move_turtle_forward       = false;
 uint16_t  last_bg_color             = 0;
 float     move_speed                = 1.0;
 
@@ -164,7 +165,6 @@ int main(int argc, char *argv[]) {
     tigrClear(window, tigrRGB(255, 255, 255));
     tigrClear(base_image, tigrRGB(255, 255, 255));
 
-
     if(argc == 3) {
         const char* img_name = argv[2];
         base_image = tigrLoadImage(img_name);
@@ -176,13 +176,6 @@ int main(int argc, char *argv[]) {
         tigrError(0, "Could not load Turtle.png");
     }
 
-    //For the maze
-    //turtle_position = vec2(28.0f,18.0f);
-    //turtle_target_position = vec2(640.0f,18.0f);
-    //angle_to_rotate();
-    //vec2f detect_pos = detect();
-
-
     while(!tigrClosed(window) && !tigrKeyDown(window, TK_ESCAPE)) {
         tny_clock(&t);
 
@@ -193,7 +186,7 @@ int main(int argc, char *argv[]) {
 
             /* We can just draw the turtle directly to the window as long as its after our base image drawing */
             rotate_turtle(window, turtle_image, turtle_position.x, turtle_position.y, turtle_heading);
-            if(move_turtle) {
+            if(move_turtle || move_turtle_forward) {
                 move_to_target(&t);
             }
 
@@ -212,7 +205,7 @@ void move_to_target(teenyat *t) {
     turtle_last_position = turtle_position;
 
     float distance = (turtle_position - turtle_target_position).length();
-    if (distance <= move_speed) {
+    if ((distance <= move_speed) && !move_turtle_forward) {
         turtle_position = turtle_target_position;
         move_turtle = false;
         tny_external_interrupt(t, TURTLE_INT_MOVE_DONE);
@@ -221,6 +214,10 @@ void move_to_target(teenyat *t) {
     {
         vec2f dir = turtle_target_position;
         dir = (dir - turtle_position).normalize();
+        if(move_turtle_forward) {
+            double fixed_angle = (turtle_heading + 270) * M_PI / 180;
+            dir = vec2f(std::cos(fixed_angle), std::sin(fixed_angle)).normalize();
+        }
         turtle_position += move_speed * dir;
     }
 
@@ -375,6 +372,9 @@ void bus_write(teenyat *t, tny_uword addr, tny_word data, uint16_t *delay) {
     switch(addr) {
         case GOTO_XY:
             move_turtle = true;
+            break;
+        case MOVE:
+            move_turtle_forward = data.u;
             break;
         case FACE_XY:
             angle_to_rotate();
