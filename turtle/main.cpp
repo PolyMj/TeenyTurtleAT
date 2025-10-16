@@ -99,11 +99,16 @@
 #define DETECT         0xE003
 #define SET_ERASER     0xE004
 
+#define TURTLE_INT_MOVE_DONE        TNY_XINT0
+#define TURTLE_INT_FACE_DONE        TNY_XINT1
+#define TURTLE_INT_COLOR_CHANGE     TNY_XINT2
+
 void bus_read(teenyat *t, tny_uword addr, tny_word *data, uint16_t *delay);
 void bus_write(teenyat *t, tny_uword addr, tny_word data, uint16_t *delay);
 void move_to_target(teenyat *t);
 void rotate_turtle(Tigr* dest, Tigr* turtle, float cx, float cy, float angleDegrees);
 void angle_to_rotate();
+void normalize_angle();
 
 Tigr* window;
 Tigr* base_image;
@@ -111,15 +116,21 @@ Tigr* turtle_image;
 int   windowWidth = 640;
 int   windowHeight = 500;
 
-vec2      turtle_position           = vec2(320.0f,250.0f);
+vec2f     turtle_position           = vec2(320.0f,250.0f);
+vec2f     turtle_last_position      = turtle_position;
 int       turtle_size               = 5;
-vec2      turtle_target_position    = vec2(0.0f,0.0f);
+vec2      turtle_target_position    = turtle_position;
 double    turtle_heading            = 0.0f;
-TPixel    pen_color                 = {0,0,0,0};
+TPixel    pen_color                 = {0,0,0,255};
 int       pen_size                  = 5;
 bool      pen_down                  = false;
 bool      erase_mode                = false;
-bool      move_turtle               = true;
+bool      move_turtle               = false;
+uint16_t  last_bg_color             = 0;
+float     move_speed                = 1.0;
+
+// The turtle's "hitbox"
+const uint16_t turtle_radius        = 5;
 
 int main(int argc, char *argv[]) {
     /* If only one parameter is provided then we treat it as the teenyat binary
@@ -170,8 +181,8 @@ int main(int argc, char *argv[]) {
             /* Move base_image ontop of our window */
             tigrBlit(window, base_image, 0, 0, 0, 0, base_image->w, base_image->h);
 
-            rotate_turtle(base_image, turtle_image, turtle_position.x, turtle_position.y, turtle_heading);
-
+            /* We can just draw the turtle directly to the window as long as its after our base image drawing */
+            rotate_turtle(window, turtle_image, turtle_position.x, turtle_position.y, turtle_heading);
             if(move_turtle) {
                 move_to_target(&t);
             }
@@ -188,37 +199,49 @@ int main(int argc, char *argv[]) {
 }
 
 void move_to_target(teenyat *t) {
-    vec2f dir = turtle_target_position;
-    dir = (dir - turtle_position).normalize();
-    turtle_position += dir;
-    float distX = turtle_target_position.x - turtle_position.x;
-    float distY = turtle_target_position.y - turtle_position.y;
-    float distance = std::sqrt( (distX*distX) + (distY*distY) );
-    if(distance < turtle_size + turtle_size) {
+    turtle_last_position = turtle_position;
+
+    float distance = (turtle_position - turtle_target_position).length();
+    if (distance <= move_speed) {
         turtle_position = turtle_target_position;
         move_turtle = false;
-        tny_external_interrupt(t, 0);
+        tny_external_interrupt(t, TURTLE_INT_MOVE_DONE);
     }
+    else
+    {
+        vec2f dir = turtle_target_position;
+        dir = (dir - turtle_position).normalize();
+        turtle_position += move_speed * dir;
+    }
+
+    /* This draws onto the background */
+    if(pen_down && turtle_position != turtle_last_position) {
+        line(base_image, turtle_last_position, turtle_position, pen_size, pen_color, NULL);
+    }
+}
+
+void normalize_angle() {
+    // Normalize turtle_heading to [0, 360)
+    while(turtle_heading >= 360.0f) turtle_heading -= 360.0f;
+    while(turtle_heading < 0.0f) turtle_heading += 360.0f;
+    return;
 }
 
 void angle_to_rotate() {
     vec2 dir = turtle_target_position - turtle_position;
     float angle_adgustment = 270.0f; // this is to orient the image correctly
     float target_angle = atan2(dir.y, dir.x) * (180.0f / M_PI) - angle_adgustment;  // Angle to target in degrees
-    
+
     // Calculate the difference between target angle and current heading
     float angle_diff = target_angle - turtle_heading;
-    
+
     // Normalize to [-180, 180] range for shortest rotation
     while(angle_diff > 180.0f) angle_diff -= 360.0f;
     while(angle_diff < -180.0f) angle_diff += 360.0f;
-    
+
     // Now turtle_heading should be updated by angle_diff
     turtle_heading += angle_diff;
-    
-    // Normalize turtle_heading to [0, 360)
-    while(turtle_heading >= 360.0f) turtle_heading -= 360.0f;
-    while(turtle_heading < 0.0f) turtle_heading += 360.0f;
+    normalize_angle();
 }
 
 void rotate_turtle(Tigr* dest, Tigr* turtle, float cx, float cy, float angleDegrees) {
@@ -236,7 +259,7 @@ void rotate_turtle(Tigr* dest, Tigr* turtle, float cx, float cy, float angleDegr
         {-halfW, -halfH}, {halfW, -halfH},
         {halfW, halfH}, {-halfW, halfH}
     };
-    
+
     float minX = 0, maxX = 0, minY = 0, maxY = 0;
     for(int i = 0; i < 4; i++) {
         float rotX = corners[i][0] * cosA - corners[i][1] * sinA;
@@ -253,21 +276,39 @@ void rotate_turtle(Tigr* dest, Tigr* turtle, float cx, float cy, float angleDegr
             // Reverse rotate to find source pixel
             float srcX = dx * cosA + dy * sinA;
             float srcY = -dx * sinA + dy * cosA;
-            
+
             // Add offset to center
             int sx = (int)(srcX + halfW + 0.5f);
             int sy = (int)(srcY + halfH + 0.5f);
-            
+
             // Check bounds
             if(sx >= 0 && sx < w && sy >= 0 && sy < h) {
                 TPixel p = tigrGet(turtle, sx, sy);
-                
+
                 if(p.a > 0) {
                     tigrPlot(dest, (int)(cx + dx), (int)(cy + dy), p);
                 }
             }
         }
     }
+}
+
+
+uint16_t colorTo16b(TPixel c24b) {
+    uint16_t r = (c24b.r >> 3) & 0x1F;  // 5 bits for red
+    uint16_t g = (c24b.g >> 2) & 0x3F;  // 6 bits for green
+    uint16_t b = (c24b.b >> 3) & 0x1F;  // 5 bits for blue
+    return (r << 11) | (g << 5) | b;
+}
+
+TPixel colorTo24b(uint16_t c16b) {
+    unsigned char r = (c16b >> 11) & 0x1F; // 5 bits for red
+    unsigned char g = (c16b >>  5) & 0x3F; // 6 bits for green
+    unsigned char b = c16b & 0x1F; // 5 bits for blue
+    r <<= 3;
+    g <<= 2;
+    b <<= 3;
+    return {r,g,b,255};
 }
 
 
@@ -279,45 +320,54 @@ void bus_read(teenyat *t, tny_uword addr, tny_word *data, uint16_t *delay) {
         case TURTLE_Y:
             data->u = turtle_position.y;
             break;
-        case DETECT: {
-            int x = (int)turtle_position.x;
-            int y = (int)turtle_position.y;
-            
-            TPixel pixel = tigrGet(base_image, x, y);
-            
-            // Convert 8-bit RGB to 5-6-5 format
-            uint16_t r = (pixel.r >> 3) & 0x1F;  // 5 bits for red
-            uint16_t g = (pixel.g >> 2) & 0x3F;  // 6 bits for green
-            uint16_t b = (pixel.b >> 3) & 0x1F;  // 5 bits for blue
-            
-            // Pack into RGB565: RRRRR GGGGGG BBBBB
-            data->u = (r << 11) | (g << 5) | b;
+        case TURTLE_ANGLE:
+            data->u = turtle_heading;
             break;
-        }
+        case DETECT:
+            // Store a 16bit version of the pixel color in the register
+            data->u = colorTo16b(tigrGet(base_image,
+                (int)turtle_position.x,
+                (int)turtle_position.y)
+            );
+            break;
+        case SET_X:
+            data->u = turtle_target_position.x;
+            break;
+        case SET_Y:
+            data->u = turtle_target_position.y;
+            break;
     }
     return;
 }
 
 void bus_write(teenyat *t, tny_uword addr, tny_word data, uint16_t *delay) {
-    switch(addr){
-        case GOTO_XY: {
-          move_turtle = true;
-        }
-        break;
-        case FACE_XY: {
-            angle_to_rotate();
-            rotate_turtle(base_image, turtle_image, turtle_position.x, turtle_position.y, turtle_heading);
+    switch(addr) {
+        case GOTO_XY:
+            move_turtle = true;
             break;
-        }
-        case PEN_UP: {
+        case FACE_XY:
+            angle_to_rotate();
+            rotate_turtle(window, turtle_image, turtle_position.x, turtle_position.y, turtle_heading);
+            break;
+        case PEN_UP:
             pen_down = false;
             break;
-        }
-        case PEN_DOWN: {
+        case PEN_DOWN:
             pen_down = true;
             break;
-        }
-        
+        case PEN_COLOR:
+            pen_color = colorTo24b(data.u);
+            break;
+        case SET_X:
+            turtle_target_position.x = data.u;
+            break;
+        case SET_Y:
+            turtle_target_position.y = data.u;
+            break;
+        case TURTLE_ANGLE:
+            turtle_heading = data.u;
+            normalize_angle();
+            break;
     }
     return;
 }

@@ -1,21 +1,39 @@
 #include "draw.hpp"
 
 
-void verticalLine(Tigr *img, uint16_t x1, uint16_t y1, uint16_t y2, TPixel color, LINE_PLOT_CALLBACK plot)
+void verticalLine(Tigr *img, uint16_t x1, uint16_t y1, uint16_t y2, uint16_t r, TPixel color, LINE_PLOT_CALLBACK plot)
 {
-    for (uint16_t y = min(y1, y2); y <= max(y1, y2); ++y)
+    for (uint16_t x = max(0,x1-r); x < min(img->w, x1+r+1); ++x)
     {
-        if (plot) plot(img, {x1, y});
-        else tigrPlot(img, x1, y, color);
+        for (uint16_t y = min(y1, y2); y <= max(y1, y2); ++y)
+        {
+            if (plot) plot(img, {x, y});
+            else tigrPlot(img, x, y, color);
+        }
+    }
+
+    if (r > 1)
+    {
+        fillCircle(img, {x1, y1}, r, color, plot);
+        fillCircle(img, {x1, y2}, r, color, plot);
     }
 }
 
-void horizontalLine(Tigr *img, uint16_t x1, uint16_t y1, uint16_t x2, TPixel color, LINE_PLOT_CALLBACK plot)
+void horizontalLine(Tigr *img, uint16_t x1, uint16_t y1, uint16_t x2, uint16_t r, TPixel color, LINE_PLOT_CALLBACK plot)
 {
-    for (uint16_t x = min(x1, x2); x <= max(x1, x2); ++x)
+    for (uint16_t y = max(0,y1-r); y < min(img->h, y1+r+1); ++y)
     {
-        if (plot) plot(img, {x, y1});
-        else tigrPlot(img, x, y1, color);
+        for (uint16_t x = min(x1, x2); x <= max(x1, x2); ++x)
+        {
+            if (plot) plot(img, {x, y});
+            else tigrPlot(img, x, y, color);
+        }
+    }
+
+    if (r > 1)
+    {
+        fillCircle(img, {x1, y1}, r, color, plot);
+        fillCircle(img, {x2, y1}, r, color, plot);
     }
 }
 
@@ -27,12 +45,12 @@ void line(Tigr *img, vec2p p1, vec2p p2, uint16_t r, TPixel color, LINE_PLOT_CAL
     /* If horizontal or vertical, can use simpler functions to draw */
     if (dx == 0)
     {
-        verticalLine(img, p1.x, p1.y, p2.y, color, plot);
+        verticalLine(img, p1.x, p1.y, p2.y, r, color, plot);
         return;
     }
     if (dy == 0)
     {
-        horizontalLine(img, p1.x, p1.y, p2.x, color, plot);
+        horizontalLine(img, p1.x, p1.y, p2.x, r, color, plot);
         return;
     }
 
@@ -47,7 +65,7 @@ void line(Tigr *img, vec2p p1, vec2p p2, uint16_t r, TPixel color, LINE_PLOT_CAL
 
     while (p1.x != p2.x || p1.y != p2.y) {
         // Plot pixels
-        if (r == 0)
+        if (r <= 1)
             if (plot) plot(img, p1);
             else tigrPlot(img, p1.x, p1.y, color);
         else
@@ -68,7 +86,7 @@ void line(Tigr *img, vec2p p1, vec2p p2, uint16_t r, TPixel color, LINE_PLOT_CAL
         }
     }
     // Plot pixels
-    if (r == 0)
+    if (r <= 1)
         if (plot) plot(img, p1);
         else tigrPlot(img, p1.x, p1.y, color);
     else
