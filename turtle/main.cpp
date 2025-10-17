@@ -219,6 +219,10 @@ void move_to_target(teenyat *t) {
             dir = vec2f(std::cos(fixed_angle), std::sin(fixed_angle)).normalize();
         }
         turtle_position += move_speed * dir;
+        if(turtle_position.x < 0) turtle_position.x = 0;
+        if(turtle_position.x > windowWidth) turtle_position.x = windowWidth;
+        if(turtle_position.y < 0) turtle_position.y = 0;
+        if(turtle_position.y > windowHeight) turtle_position.y = windowHeight;
     }
 
     /* This draws onto the background */
