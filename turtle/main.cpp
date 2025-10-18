@@ -135,7 +135,7 @@ float     move_speed                = 1.0;
 vec2f turtle_subtarget_pos  = turtle_position;
 bool  move_done             = false;
 
-const int      turtle_size           = 5;
+const int      turtle_size           = 8;
 const uint16_t detect_ahead_distance = 15;
 
 int main(int argc, char *argv[]) {
@@ -378,6 +378,11 @@ TPixel colorTo24b(uint16_t c16b) {
     return {r,g,b,255};
 }
 
+// Draws a "dot" to the screen. Should be called when the pen is down and a change to the pen has been made. 
+inline void drawDot() {
+    fillCircle(base_image, turtle_position, pen_size, pen_color, NULL);
+}
+
 
 void bus_read(teenyat *t, tny_uword addr, tny_word *data, uint16_t *delay) {
     switch(addr) {
@@ -429,9 +434,15 @@ void bus_write(teenyat *t, tny_uword addr, tny_word data, uint16_t *delay) {
             break;
         case PEN_DOWN:
             pen_down = true;
+            drawDot();
             break;
         case PEN_COLOR:
             pen_color = colorTo24b(data.u);
+            if (pen_down) drawDot();
+            break;
+        case PEN_SIZE:
+            pen_size = data.u;
+            if (pen_down) drawDot();
             break;
         case SET_X:
             turtle_target_position.x = data.u;
