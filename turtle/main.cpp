@@ -98,7 +98,7 @@
 #define MOVE           0xE002
 #define DETECT         0xE003
 #define SET_ERASER     0xE004
-#define DETECT_AHEAD     0xE005
+#define DETECT_AHEAD   0xE005
 
 #define TURTLE_INT_MOVE_DONE        TNY_XINT0
 #define TURTLE_INT_HIT_EDGE         TNY_XINT1
@@ -121,7 +121,6 @@ int   windowWidth = 640;
 int   windowHeight = 500;
 
 vec2f     turtle_position           = vec2(320.0f,250.0f);
-vec2f     turtle_last_position      = turtle_position;
 vec2      turtle_target_position    = turtle_position;
 double    turtle_heading            = 0.0f;
 TPixel    pen_color                 = {0,0,0,255};
@@ -130,13 +129,16 @@ bool      pen_down                  = false;
 bool      erase_mode                = false;
 bool      move_turtle_target        = false;
 bool      move_turtle_forward       = false;
-float     move_speed                = 1.0;
+float     move_speed                = 1.0; // 60 p/s by default
 
 vec2f turtle_subtarget_pos  = turtle_position;
 bool  move_done             = false;
 
 const int      turtle_size           = 8;
 const uint16_t detect_ahead_distance = 15;
+const int FPS = 60;
+const int cycles_per_frame = 1e6 / FPS;
+const float speed_fps_adjust = 60.0f / (float)(FPS);
 
 int main(int argc, char *argv[]) {
     /* If only one parameter is provided then we treat it as the teenyat binary
@@ -160,7 +162,6 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
-    int frame_number = 0;
     window = tigrWindow(windowWidth, windowHeight, "TeenyAT Turtle", TIGR_FIXED);
     base_image = tigrBitmap(window->w, window->h);
     tigrClear(window, tigrRGB(255, 255, 255));
@@ -177,11 +178,13 @@ int main(int argc, char *argv[]) {
         tigrError(0, "Could not load Turtle.png");
     }
 
+    int cycles_until_frame = 0;
     while(!tigrClosed(window) && !tigrKeyDown(window, TK_ESCAPE)) {
         tny_clock(&t);
+        --cycles_until_frame;
 
         /* Game ticks every 60 frames */
-        if(!frame_number) {
+        if(cycles_until_frame < 0) {
             /* Move base_image ontop of our window */
             tigrBlit(window, base_image, 0, 0, 0, 0, base_image->w, base_image->h);
 
@@ -193,10 +196,8 @@ int main(int argc, char *argv[]) {
             }
 
             tigrUpdate(window);
-            // std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            cycles_until_frame = cycles_per_frame;
         }
-
-        frame_number = (frame_number + 1) % 60;
     }
 
     tigrFree(window);
@@ -204,21 +205,21 @@ int main(int argc, char *argv[]) {
 }
 
 void calc_move_turtle(teenyat *t) {
-    turtle_last_position = turtle_position;
     vec2f dir;
+    float move_amnt = speed_fps_adjust * move_speed;
 
     // Move to a target
     if (move_turtle_target) {
         dir = turtle_target_position - turtle_position;
         float distance = dir.length();
-        if (distance <= move_speed) {
+        if (distance <= move_amnt) {
             turtle_subtarget_pos = turtle_target_position;
             move_turtle_target = false;
             move_done = true;
         }
         else {
             dir = dir.normalize();
-            turtle_subtarget_pos += move_speed * dir;
+            turtle_subtarget_pos += move_amnt * dir;
             move_done = false;
         }
     }
@@ -226,7 +227,7 @@ void calc_move_turtle(teenyat *t) {
     else if (move_turtle_forward) {
         double fixed_angle = (turtle_heading + 270) * M_PI / 180;
         dir = vec2f(std::cos(fixed_angle), std::sin(fixed_angle)).normalize();
-        turtle_subtarget_pos += move_speed * dir;
+        turtle_subtarget_pos += move_amnt * dir;
         move_done = false;
     }
 }
@@ -257,6 +258,7 @@ void do_move_turtle(teenyat *t) {
     }
     if (move_done) {
         tny_external_interrupt(t, TURTLE_INT_MOVE_DONE);
+        move_done = false;
     }
 
     // get the integer version of the position
