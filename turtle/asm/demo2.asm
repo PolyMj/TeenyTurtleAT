@@ -25,19 +25,6 @@
 .const DETECT         0xE003
 .const SET_ERASER     0xE004
 
-; Setup interrupt callback by mapping it to external interrupt 8
-set rA, !set_new_target_XY
-set rB, 8
-str [ INTERRUPT_VECTOR_TABLE + rB ], rA
-
-; Enable external interrupt 8
-set rA, 0b00000001_00000000
-str [ INTERRUPT_ENABLE_REGISTER ], rA
-
-; Enable interrupts globally
-set rA, 0b000000000000000_1
-str [ CONTROL_STATUS_REGISTER ], rA
-
 set rA, 2
 str [ PEN_DOWN ], rZ
 !main
@@ -47,25 +34,9 @@ str [ PEN_DOWN ], rZ
     str [ PEN_COLOR ], rC
     lod rC, [ RAND ]
     mod rC, 0x622
+    set rD, 0xFF
+    !dly_loop
+        dly rC
+        lup rD, !dly_loop
     add rB, 5
-    dly rC
     jmp !main
-
-;-------------------------------------------------
-!set_new_target_XY
-    psh rA
-    lod rA, [ RAND ]
-    mod rA, 641
-    str [ SET_X ], rA
-    lod rA, [RAND]
-    mod rA, 501
-    str [ SET_Y ], rA
-    str [ PEN_UP ], rZ
-    lod rA, [ RAND_BITS ]
-    str [ PEN_COLOR ], rA
-    mod rA, 2
-    je !return
-    str [ PEN_DOWN ], rZ
-!return
-    pop rA
-    rti

@@ -48,17 +48,19 @@ str [ CONTROL_STATUS_REGISTER ], rA
 !set_new_target_XY
     psh rA
     lod rA, [ RAND ]
-    mod rA, 641
+    mod rA, 640
     str [ SET_X ], rA
-    lod rA, [RAND]
-    mod rA, 501
+    lod rA, [ RAND ]
+    mod rA, 500
     str [ SET_Y ], rA
-    str [ PEN_UP ], rZ
+    mod rA, 2
+    je !pen_goes_up
     lod rA, [ RAND_BITS ]
     str [ PEN_COLOR ], rA
-    mod rA, 2
-    je !return
     str [ PEN_DOWN ], rZ
+    jmp !return
+!pen_goes_up
+    str [ PEN_UP ], rZ
 !return
     pop rA
     rti
