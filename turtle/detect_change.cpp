@@ -80,13 +80,6 @@ void getColorChanges(Tigr *img, vec2p p1, vec2p p2, uint16_t r) {
 
         prev_position = p1;
     }
-
-    // Temp for testing
-    if (!change_queue.empty()) cout << "COLORS" << endl;
-    while (!change_queue.empty()) {
-        cout << "\t" << change_queue.front().new_color << endl;
-        change_queue.pop();
-    }
 }
 
 void checkVerticalLine(Tigr *img, uint16_t x1, uint16_t y1, uint16_t y2, uint16_t r)

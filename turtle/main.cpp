@@ -101,7 +101,7 @@
 #define DETECT         0xE003
 #define SET_ERASER     0xE004
 #define DETECT_AHEAD   0xE005
-#define OLD_COLOR      0xE010
+#define GET_COLOR_CHANGE  0xE010
 #define NEXT_COLOR_CHANGE 0xE011
 #define STOP_MOVE      0xE012
 
@@ -136,10 +136,12 @@ bool      pen_down                  = false;
 bool      erase_mode                = false;
 bool      move_turtle_target        = false;
 bool      move_turtle_forward       = false;
-float     move_speed                = 1.0; // 60 p/s by default
+float     move_speed                = 5.0; // 60 p/s by default
 
 vec2f turtle_subtarget_pos  = turtle_position;
 bool  move_done             = false;
+ColorChange last_color_change;
+bool color_change_set = false;
 
 const int      turtle_size           = 8;
 const uint16_t detect_ahead_distance = 15;
@@ -242,6 +244,10 @@ void calc_move_turtle(teenyat *t) {
     }
 
     getColorChanges(base_image, turtle_position, turtle_subtarget_pos, turtle_size);
+    if (!change_queue.empty()) {
+        tny_external_interrupt(t, TURTLE_INT_COLOR_CHANGE);
+        last_color_change = change_queue.front(); change_queue.pop();
+    }
 }
 
 void do_move_turtle(teenyat *t) {
@@ -411,6 +417,18 @@ void bus_read(teenyat *t, tny_uword addr, tny_word *data, uint16_t *delay) {
         case SET_Y:
             data->u = turtle_target_position.y;
             break;
+        case GET_COLOR_CHANGE:
+            data->u = last_color_change.new_color;
+            break;
+        case NEXT_COLOR_CHANGE:
+            data->u = change_queue.size();
+            if (change_queue.empty()) {
+                color_change_set = false;
+                break;
+            }
+            last_color_change = change_queue.front(); change_queue.pop();
+            color_change_set = true;
+            break;
     }
     return;
 }
@@ -452,6 +470,13 @@ void bus_write(teenyat *t, tny_uword addr, tny_word data, uint16_t *delay) {
             turtle_heading = data.u;
             normalize_angle();
             break;
+        case STOP_MOVE:
+            if (color_change_set) {
+                turtle_subtarget_pos = last_color_change.old_position;
+            }
+            else {
+                turtle_subtarget_pos = turtle_position;
+            }
     }
     return;
 }
