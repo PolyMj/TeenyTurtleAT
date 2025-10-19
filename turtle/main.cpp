@@ -5,6 +5,7 @@
 #include <thread>
 #include <chrono>
 #include <cmath>
+#include <iomanip>
 #include "vec.hpp"
 #include "tigr.h"
 #include "draw.hpp"
@@ -79,7 +80,7 @@
  *  - read only
  *  - returns the color underneath the turtles head
  *
- *  SET_ERASER:
+ *  SET_ERASER (FUTURE FEATURE):
  *  - 0xE004
  *  - write only
  *  - sets the pen color to white (our eraser color)
@@ -101,14 +102,14 @@
 #define DETECT         0xE003
 #define SET_ERASER     0xE004
 #define DETECT_AHEAD   0xE005
-#define GET_COLOR_CHANGE  0xE010
-#define NEXT_COLOR_CHANGE 0xE011
-#define STOP_MOVE      0xE012
+#define GET_COLOR_CHANGE  0xE010 // Load the current color change into the given register
+#define NEXT_COLOR_CHANGE 0xE011 // Loads the number of color changes remaining into the given register; loads the next color into the GET_COLOR_CHANGE peripheral
+#define STOP_MOVE      0xE012 // Cancels the current movement
+#define TERM           0xE0F0
 
 #define TURTLE_INT_MOVE_DONE        TNY_XINT0
 #define TURTLE_INT_HIT_EDGE         TNY_XINT1
 #define TURTLE_INT_COLOR_CHANGE     TNY_XINT2
-// #define TURTLE_INT_FACE_DONE        TNY_XINT3
 
 void bus_read(teenyat *t, tny_uword addr, tny_word *data, uint16_t *delay);
 void bus_write(teenyat *t, tny_uword addr, tny_word data, uint16_t *delay);
@@ -136,7 +137,7 @@ bool      pen_down                  = false;
 bool      erase_mode                = false;
 bool      move_turtle_target        = false;
 bool      move_turtle_forward       = false;
-float     move_speed                = 5.0; // 60 p/s by default
+float     move_speed                = 12.0; // 60 p/s by default
 
 vec2f turtle_subtarget_pos  = turtle_position;
 bool  move_done             = false;
@@ -477,6 +478,23 @@ void bus_write(teenyat *t, tny_uword addr, tny_word data, uint16_t *delay) {
             else {
                 turtle_subtarget_pos = turtle_position;
             }
+            break;
+        case TERM:
+            std::cout << "0x" << std::hex << std::setfill('0') << std::setw(4) << data.u;
+            std::cout << std::dec << std::setfill(' ') << std::setw(5);
+            std::cout << "    unsigned: " << data.u;
+            std::cout << "    signed: " << data.s;
+            std::cout << "    char: ";
+            if(data.u < 256) {
+                std::cout << (char)(data.u);
+            }
+            else {
+                std::cout << "<out of range>";
+            }
+            std::cout << std::endl;
+            break;
+        default:
+            break;
     }
     return;
 }
