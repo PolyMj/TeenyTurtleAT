@@ -9,6 +9,8 @@
 #include "tigr.h"
 #include "draw.hpp"
 #include "teenyat.h"
+#include "util.hpp"
+#include "detect_change.hpp"
 
 /*  TeenyAT Turtle System
  *
@@ -99,6 +101,9 @@
 #define DETECT         0xE003
 #define SET_ERASER     0xE004
 #define DETECT_AHEAD   0xE005
+#define OLD_COLOR      0xE010
+#define NEXT_COLOR_CHANGE 0xE011
+#define STOP_MOVE      0xE012
 
 #define TURTLE_INT_MOVE_DONE        TNY_XINT0
 #define TURTLE_INT_HIT_EDGE         TNY_XINT1
@@ -190,9 +195,13 @@ int main(int argc, char *argv[]) {
 
             /* We can just draw the turtle directly to the window as long as its after our base image drawing */
             rotate_turtle(window, turtle_image, turtle_position.x, turtle_position.y, turtle_heading);
+
+            // The order of "do_move" and "calc_move" are swapped so that
+            // the assembler gets one frame to handle all interrupts generated from
+            // a move calculation
             if(move_turtle_target || move_turtle_forward) {
-                calc_move_turtle(&t);
                 do_move_turtle(&t);
+                calc_move_turtle(&t);
             }
 
             tigrUpdate(window);
@@ -214,7 +223,6 @@ void calc_move_turtle(teenyat *t) {
         float distance = dir.length();
         if (distance <= move_amnt) {
             turtle_subtarget_pos = turtle_target_position;
-            move_turtle_target = false;
             move_done = true;
         }
         else {
@@ -230,6 +238,8 @@ void calc_move_turtle(teenyat *t) {
         turtle_subtarget_pos += move_amnt * dir;
         move_done = false;
     }
+
+    getColorChanges(base_image, turtle_position, turtle_subtarget_pos, turtle_size);
 }
 
 void do_move_turtle(teenyat *t) {
@@ -258,6 +268,7 @@ void do_move_turtle(teenyat *t) {
     }
     if (move_done) {
         tny_external_interrupt(t, TURTLE_INT_MOVE_DONE);
+        move_turtle_target = false;
         move_done = false;
     }
 
@@ -361,23 +372,6 @@ vec2f detect() {
     if(detect_yi >= base_image->h) detect_yi = base_image->h - 1;
 
     return vec2(detect_xi, detect_yi);
-}
-
-uint16_t colorTo16b(TPixel c24b) {
-    uint16_t r = (c24b.r >> 3) & 0x1F;  // 5 bits for red
-    uint16_t g = (c24b.g >> 2) & 0x3F;  // 6 bits for green
-    uint16_t b = (c24b.b >> 3) & 0x1F;  // 5 bits for blue
-    return (r << 11) | (g << 5) | b;
-}
-
-TPixel colorTo24b(uint16_t c16b) {
-    unsigned char r = (c16b >> 11) & 0x1F; // 5 bits for red
-    unsigned char g = (c16b >>  5) & 0x3F; // 6 bits for green
-    unsigned char b = c16b & 0x1F; // 5 bits for blue
-    r <<= 3;
-    g <<= 2;
-    b <<= 3;
-    return {r,g,b,255};
 }
 
 // Draws a "dot" to the screen. Should be called when the pen is down and a change to the pen has been made. 
