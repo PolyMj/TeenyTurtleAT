@@ -5,13 +5,13 @@
 
 queue<ColorChange> change_queue;
 unordered_set<ColorChange, CC_Hash> seen_colors;
-uint16_t start_color;
 vec2p prev_position;
 
+typedef void(*CHECK_CALLBACK)(Tigr *img, vec2p pos);
 void checkForChange(Tigr *img, vec2p pos);
 void checkVerticalLine(Tigr *img, uint16_t x1, uint16_t y1, uint16_t y2, uint16_t r);
 void checkHorizontalLine(Tigr *img, uint16_t x1, uint16_t y1, uint16_t x2, uint16_t r);
-void checkCircle(Tigr *img, vec2p c, uint16_t r);
+void checkCircle(Tigr *img, vec2p c, uint16_t r, CHECK_CALLBACK cb = checkForChange);
 
 void checkForChange(Tigr *img, vec2p pos) {
     ColorChange cc = {
@@ -23,14 +23,22 @@ void checkForChange(Tigr *img, vec2p pos) {
     if (inserted) change_queue.push(cc);
 }
 
+void addColorsToSeen(Tigr *img, vec2p pos) {
+    ColorChange cc = {
+        .new_color = colorTo16b(tigrGet(img, pos.x, pos.y)),
+        .old_position = {0,0}
+    };
+
+    auto [it, inserted] = seen_colors.insert(cc);
+}
+
 void getColorChanges(Tigr *img, vec2p p1, vec2p p2, uint16_t r) {
     // Reinitialize lists
     change_queue = queue<ColorChange>();
     seen_colors = unordered_set<ColorChange, CC_Hash>();
 
-    // Initialize start color
-    start_color = colorTo16b(tigrGet(img, p1.x, p1.y));
-    seen_colors.insert({start_color,{0,0}}); // Add start color
+    // Ignore colors that the turtle is currently sitting on
+    checkCircle(img, p1, r, addColorsToSeen);
  
     int16_t dx = p2.x - p1.x;
     int16_t dy = p2.y - p1.y;
@@ -116,7 +124,7 @@ void checkHorizontalLine(Tigr *img, uint16_t x1, uint16_t y1, uint16_t x2, uint1
     }
 }
 
-void checkCircle(Tigr *img, vec2p c, uint16_t r)
+void checkCircle(Tigr *img, vec2p c, uint16_t r, CHECK_CALLBACK cb)
 {
     vec2p lbound, ubound;
     lbound.x = max(0, c.x-r);
@@ -128,6 +136,6 @@ void checkCircle(Tigr *img, vec2p c, uint16_t r)
     for (int32_t y = lbound.y; y < ubound.y; ++y)
     {
         int32_t res = (x-c.x)*(x-c.x) + (y-c.y)*(y-c.y) - r*r;
-        if (res < 0) checkForChange(img, {x,y});
+        if (res < 0) cb(img, {x,y});
     }
 }
