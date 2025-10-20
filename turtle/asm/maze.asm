@@ -38,12 +38,19 @@ str [ INTERRUPT_ENABLE_REGISTER ], rA
 set rA, 0b000000000000000_1
 str [ CONTROL_STATUS_REGISTER ], rA
 
-; default heading
-set rA, 90
-str [TURTLE_ANGLE], rA
+!setup ; initial setup
+    ; default heading 
+    set rA, 90
+    str [TURTLE_ANGLE], rA
 
-jmp !main
-
+    ; start the moving
+    lod rD, [ TURTLE_X ]
+    inc rD
+    str [ SET_X ], rD
+    lod rE, [ TURTLE_Y ]
+    str [ SET_Y ], rE
+    str [ FACE_XY ], rZ
+    str [ GOTO_XY ], rZ
 
 !loop
     ; forever loop
