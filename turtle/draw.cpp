@@ -3,7 +3,7 @@
 
 void verticalLine(Tigr *img, uint16_t x1, uint16_t y1, uint16_t y2, uint16_t r, TPixel color, LINE_PLOT_CALLBACK plot)
 {
-    r = min(r,uint16_t{1});
+    r = max(r,uint16_t{1});
     for (uint16_t x = max(0,x1-r+1); x < min(img->w, x1+r); ++x)
     {
         for (uint16_t y = min(y1, y2); y <= max(y1, y2); ++y)
@@ -22,7 +22,7 @@ void verticalLine(Tigr *img, uint16_t x1, uint16_t y1, uint16_t y2, uint16_t r, 
 
 void horizontalLine(Tigr *img, uint16_t x1, uint16_t y1, uint16_t x2, uint16_t r, TPixel color, LINE_PLOT_CALLBACK plot)
 {
-    r = min(r,uint16_t{1});
+    r = max(r,uint16_t{1});
     for (uint16_t y = max(0,y1-r+1); y < min(img->h, y1+r); ++y)
     {
         for (uint16_t x = min(x1, x2); x <= max(x1, x2); ++x)
