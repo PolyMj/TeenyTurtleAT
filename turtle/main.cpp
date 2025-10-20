@@ -121,6 +121,8 @@ int   windowWidth = 640;
 int   windowHeight = 500;
 
 vec2f     turtle_position           = vec2(320.0f,250.0f);
+// For Maze start
+//vec2f     turtle_position           = vec2(28.0f,18.0f);
 vec2      turtle_target_position    = turtle_position;
 double    turtle_heading            = 0.0f;
 TPixel    pen_color                 = {0,0,0,255};
@@ -395,7 +397,7 @@ void bus_read(teenyat *t, tny_uword addr, tny_word *data, uint16_t *delay) {
             data->u = turtle_position.y;
             break;
         case TURTLE_ANGLE:
-            data->u = turtle_heading + 270;
+            data->u = turtle_heading;
             break;
         case DETECT:
             // Store a 16bit version of the pixel color in the register
