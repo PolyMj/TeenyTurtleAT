@@ -1,4 +1,5 @@
 ; TeenyAT Turtle - Infinite Star/Gear
+.const RAND_BITS      0x8011
 
 ; Turtle Peripherals
 .const TURTLE_X       0xD000
@@ -48,29 +49,17 @@ str [increment], rA
     str [ MOVE ], rB
     
     ; Small delay
-    dly 50000
-    dly 50000
-    dly 50000
-    dly 50000
-    dly 50000
-    dly 50000
-    dly 50000
-    dly 50000
-    dly 50000
-    dly 50000
-    dly 50000
-    dly 50000
-    dly 50000
-    dly 50000
-    dly 50000
-    dly 50000
-    dly 50000
+    set rA, 5
+    dly rA, 50000
     
     ; Increment angle by 5 degrees
     lod rA, [ angle ]
     add rA, increment
     str [ angle ], rA
 
+    ; Change color
+    lod rA, [ RAND_BITS ]
+    str [ PEN_COLOR ], rA
 
     ; Loop forever
     jmp !spiral_loop

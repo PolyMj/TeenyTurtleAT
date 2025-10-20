@@ -34,9 +34,8 @@ str [ PEN_DOWN ], rZ
     str [ PEN_COLOR ], rC
     lod rC, [ RAND ]
     mod rC, 0x622
-    set rD, 0xFF
-    !dly_loop
-        dly rC
-        lup rD, !dly_loop
+    lod rD, [ RAND ]
+    mod rD, 0x10
+    dly rD, rC
     add rB, 5
     jmp !main
