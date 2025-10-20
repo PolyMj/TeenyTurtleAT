@@ -126,7 +126,9 @@ Tigr* turtle_image;
 int   windowWidth = 640;
 int   windowHeight = 500;
 
-vec2f     turtle_position           = vec2(320.0f,250.0f);
+//vec2f     turtle_position           = vec2(320.0f,250.0f);
+//For the maze
+vec2f     turtle_position           = vec2(28.0f,18.0f);
 vec2      turtle_target_position    = turtle_position;
 double    turtle_heading            = 0.0f;
 TPixel    pen_color                 = {0,0,0,255};
@@ -144,7 +146,7 @@ bool color_change_set = false;
 
 const int      turtle_size           = 8;
 const uint16_t detect_ahead_distance = 15;
-const int FPS = 60;
+const int FPS = 120;
 const int cycles_per_frame = 1e6 / FPS;
 const float speed_fps_adjust = 60.0f / (float)(FPS);
 
@@ -396,7 +398,7 @@ void bus_read(teenyat *t, tny_uword addr, tny_word *data, uint16_t *delay) {
             data->u = turtle_position.y;
             break;
         case TURTLE_ANGLE:
-            data->u = turtle_heading + 270;
+            data->u = turtle_heading;
             break;
         case DETECT:
             // Store a 16bit version of the pixel color in the register
