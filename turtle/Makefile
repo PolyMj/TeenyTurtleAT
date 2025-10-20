@@ -23,8 +23,6 @@ all:
 	g++ tigr.o teenyat.o draw.o detect_change.o main.o -o turtle $(LDFLAGS)
 	@echo ------ Cleaning -------
 	$(RMCMD) *.o
-	@echo ------ Moving to bin -------
-	cp turtle ../build/out/bin/
 	@echo ------ DONE -------
 
 clean:
