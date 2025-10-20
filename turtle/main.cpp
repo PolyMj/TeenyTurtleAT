@@ -5,10 +5,13 @@
 #include <thread>
 #include <chrono>
 #include <cmath>
+#include <iomanip>
 #include "vec.hpp"
 #include "tigr.h"
 #include "draw.hpp"
 #include "teenyat.h"
+#include "util.hpp"
+#include "detect_change.hpp"
 
 /*  TeenyAT Turtle System
  *
@@ -77,7 +80,7 @@
  *  - read only
  *  - returns the color underneath the turtles head
  *
- *  SET_ERASER:
+ *  SET_ERASER (FUTURE FEATURE):
  *  - 0xE004
  *  - write only
  *  - sets the pen color to white (our eraser color)
@@ -98,15 +101,20 @@
 #define MOVE           0xE002
 #define DETECT         0xE003
 #define SET_ERASER     0xE004
-#define DETECT_AHEAD     0xE005
+#define DETECT_AHEAD   0xE005
+#define GET_COLOR_CHANGE  0xE010 // Load the current color change into the given register
+#define NEXT_COLOR_CHANGE 0xE011 // Loads the number of color changes remaining into the given register; loads the next color into the GET_COLOR_CHANGE peripheral
+#define STOP_MOVE      0xE012 // Cancels the current movement
+#define TERM           0xE0F0
 
 #define TURTLE_INT_MOVE_DONE        TNY_XINT0
-#define TURTLE_INT_FACE_DONE        TNY_XINT1
+#define TURTLE_INT_HIT_EDGE         TNY_XINT1
 #define TURTLE_INT_COLOR_CHANGE     TNY_XINT2
 
 void bus_read(teenyat *t, tny_uword addr, tny_word *data, uint16_t *delay);
 void bus_write(teenyat *t, tny_uword addr, tny_word data, uint16_t *delay);
-void move_to_target(teenyat *t);
+void calc_move_turtle(teenyat *t);
+void do_move_turtle(teenyat *t);
 void rotate_turtle(Tigr* dest, Tigr* turtle, float cx, float cy, float angleDegrees);
 void angle_to_rotate();
 void normalize_angle();
@@ -119,22 +127,26 @@ int   windowWidth = 640;
 int   windowHeight = 500;
 
 vec2f     turtle_position           = vec2(320.0f,250.0f);
-vec2f     turtle_last_position      = turtle_position;
-int       turtle_size               = 5;
 vec2      turtle_target_position    = turtle_position;
 double    turtle_heading            = 0.0f;
 TPixel    pen_color                 = {0,0,0,255};
 int       pen_size                  = 5;
 bool      pen_down                  = false;
 bool      erase_mode                = false;
-bool      move_turtle               = false;
-uint16_t  last_bg_color             = 0;
-float     move_speed                = 1.0;
+bool      move_turtle_target        = false;
+bool      move_turtle_forward       = false;
+float     move_speed                = 12.0; // 60 p/s by default
 
-// The turtle's "hitbox"
-const uint16_t turtle_radius        = 5;
+vec2f turtle_subtarget_pos  = turtle_position;
+bool  move_done             = false;
+ColorChange last_color_change;
+bool color_change_set = false;
 
+const int      turtle_size           = 8;
 const uint16_t detect_ahead_distance = 15;
+const int FPS = 60;
+const int cycles_per_frame = 1e6 / FPS;
+const float speed_fps_adjust = 60.0f / (float)(FPS);
 
 int main(int argc, char *argv[]) {
     /* If only one parameter is provided then we treat it as the teenyat binary
@@ -158,12 +170,10 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
-    int frame_number = 0;
     window = tigrWindow(windowWidth, windowHeight, "TeenyAT Turtle", TIGR_FIXED);
     base_image = tigrBitmap(window->w, window->h);
     tigrClear(window, tigrRGB(255, 255, 255));
     tigrClear(base_image, tigrRGB(255, 255, 255));
-
 
     if(argc == 3) {
         const char* img_name = argv[2];
@@ -176,58 +186,109 @@ int main(int argc, char *argv[]) {
         tigrError(0, "Could not load Turtle.png");
     }
 
-    //For the maze
-    //turtle_position = vec2(28.0f,18.0f);
-    //turtle_target_position = vec2(640.0f,18.0f);
-    //angle_to_rotate();
-    //vec2f detect_pos = detect();
-
-
+    int cycles_until_frame = 0;
     while(!tigrClosed(window) && !tigrKeyDown(window, TK_ESCAPE)) {
         tny_clock(&t);
+        --cycles_until_frame;
 
         /* Game ticks every 60 frames */
-        if(!frame_number) {
+        if(cycles_until_frame < 0) {
             /* Move base_image ontop of our window */
             tigrBlit(window, base_image, 0, 0, 0, 0, base_image->w, base_image->h);
 
             /* We can just draw the turtle directly to the window as long as its after our base image drawing */
             rotate_turtle(window, turtle_image, turtle_position.x, turtle_position.y, turtle_heading);
-            if(move_turtle) {
-                move_to_target(&t);
+
+            // The order of "do_move" and "calc_move" are swapped so that
+            // the assembler gets one frame to handle all interrupts generated from
+            // a move calculation
+            if(move_turtle_target || move_turtle_forward) {
+                do_move_turtle(&t);
+                calc_move_turtle(&t);
             }
 
             tigrUpdate(window);
-            // std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            cycles_until_frame = cycles_per_frame;
         }
-
-        frame_number = (frame_number + 1) % 60;
     }
 
     tigrFree(window);
     return EXIT_SUCCESS;
 }
 
-void move_to_target(teenyat *t) {
-    turtle_last_position = turtle_position;
+void calc_move_turtle(teenyat *t) {
+    vec2f dir;
+    float move_amnt = speed_fps_adjust * move_speed;
 
-    float distance = (turtle_position - turtle_target_position).length();
-    if (distance <= move_speed) {
-        turtle_position = turtle_target_position;
-        move_turtle = false;
+    // Move to a target
+    if (move_turtle_target) {
+        dir = turtle_target_position - turtle_position;
+        float distance = dir.length();
+        if (distance <= move_amnt) {
+            turtle_subtarget_pos = turtle_target_position;
+            move_done = true;
+        }
+        else {
+            dir = dir.normalize();
+            turtle_subtarget_pos += move_amnt * dir;
+            move_done = false;
+        }
+    }
+    // Move forward
+    else if (move_turtle_forward) {
+        double fixed_angle = (turtle_heading + 270) * M_PI / 180;
+        dir = vec2f(std::cos(fixed_angle), std::sin(fixed_angle)).normalize();
+        turtle_subtarget_pos += move_amnt * dir;
+        move_done = false;
+    }
+
+    getColorChanges(base_image, turtle_position, turtle_subtarget_pos, turtle_size);
+    if (!change_queue.empty()) {
+        tny_external_interrupt(t, TURTLE_INT_COLOR_CHANGE);
+        last_color_change = change_queue.front(); change_queue.pop();
+    }
+}
+
+void do_move_turtle(teenyat *t) {
+    bool hit_edge = false;
+    // Keep turtle within window
+    if (turtle_subtarget_pos.x < 0) {
+        turtle_subtarget_pos.x = 0;
+        hit_edge = true;
+    }
+    if (turtle_subtarget_pos.y < 0) {
+        turtle_subtarget_pos.y = 0;
+        hit_edge = true;
+    }
+    if (turtle_subtarget_pos.x > windowWidth-1) {
+        turtle_subtarget_pos.x = windowWidth-1;
+        hit_edge = true;
+    }
+    if (turtle_subtarget_pos.y > windowHeight-1) {
+        turtle_subtarget_pos.y = windowHeight-1;
+        hit_edge = true;
+    }
+
+    // Call interrupts as needed
+    if (hit_edge) {
+        tny_external_interrupt(t, TURTLE_INT_HIT_EDGE);
+    }
+    if (move_done) {
         tny_external_interrupt(t, TURTLE_INT_MOVE_DONE);
-    }
-    else
-    {
-        vec2f dir = turtle_target_position;
-        dir = (dir - turtle_position).normalize();
-        turtle_position += move_speed * dir;
+        move_turtle_target = false;
+        move_done = false;
     }
 
-    /* This draws onto the background */
-    if(pen_down && turtle_position != turtle_last_position) {
-        line(base_image, turtle_last_position, turtle_position, pen_size, pen_color, NULL);
+    // get the integer version of the position
+    vec2p true_pos  = turtle_position;
+    vec2p true_targ = turtle_subtarget_pos;
+
+    // Draw onto background only if the turtle actually moves
+    if(pen_down && true_pos != true_targ) {
+        line(base_image, true_pos, true_targ, pen_size, pen_color, NULL);
     }
+
+    turtle_position = turtle_subtarget_pos;
 }
 
 void normalize_angle() {
@@ -320,21 +381,9 @@ vec2f detect() {
     return vec2(detect_xi, detect_yi);
 }
 
-uint16_t colorTo16b(TPixel c24b) {
-    uint16_t r = (c24b.r >> 3) & 0x1F;  // 5 bits for red
-    uint16_t g = (c24b.g >> 2) & 0x3F;  // 6 bits for green
-    uint16_t b = (c24b.b >> 3) & 0x1F;  // 5 bits for blue
-    return (r << 11) | (g << 5) | b;
-}
-
-TPixel colorTo24b(uint16_t c16b) {
-    unsigned char r = (c16b >> 11) & 0x1F; // 5 bits for red
-    unsigned char g = (c16b >>  5) & 0x3F; // 6 bits for green
-    unsigned char b = c16b & 0x1F; // 5 bits for blue
-    r <<= 3;
-    g <<= 2;
-    b <<= 3;
-    return {r,g,b,255};
+// Draws a "dot" to the screen. Should be called when the pen is down and a change to the pen has been made. 
+inline void drawDot() {
+    fillCircle(base_image, turtle_position, pen_size, pen_color, NULL);
 }
 
 
@@ -367,6 +416,18 @@ void bus_read(teenyat *t, tny_uword addr, tny_word *data, uint16_t *delay) {
         case SET_Y:
             data->u = turtle_target_position.y;
             break;
+        case GET_COLOR_CHANGE:
+            data->u = last_color_change.new_color;
+            break;
+        case NEXT_COLOR_CHANGE:
+            data->u = change_queue.size();
+            if (change_queue.empty()) {
+                color_change_set = false;
+                break;
+            }
+            last_color_change = change_queue.front(); change_queue.pop();
+            color_change_set = true;
+            break;
     }
     return;
 }
@@ -374,7 +435,10 @@ void bus_read(teenyat *t, tny_uword addr, tny_word *data, uint16_t *delay) {
 void bus_write(teenyat *t, tny_uword addr, tny_word data, uint16_t *delay) {
     switch(addr) {
         case GOTO_XY:
-            move_turtle = true;
+            move_turtle_target = true;
+            break;
+        case MOVE:
+            move_turtle_forward = data.u;
             break;
         case FACE_XY:
             angle_to_rotate();
@@ -385,9 +449,15 @@ void bus_write(teenyat *t, tny_uword addr, tny_word data, uint16_t *delay) {
             break;
         case PEN_DOWN:
             pen_down = true;
+            drawDot();
             break;
         case PEN_COLOR:
             pen_color = colorTo24b(data.u);
+            if (pen_down) drawDot();
+            break;
+        case PEN_SIZE:
+            pen_size = data.u;
+            if (pen_down) drawDot();
             break;
         case SET_X:
             turtle_target_position.x = data.u;
@@ -398,6 +468,30 @@ void bus_write(teenyat *t, tny_uword addr, tny_word data, uint16_t *delay) {
         case TURTLE_ANGLE:
             turtle_heading = data.u;
             normalize_angle();
+            break;
+        case STOP_MOVE:
+            if (color_change_set) {
+                turtle_subtarget_pos = last_color_change.old_position;
+            }
+            else {
+                turtle_subtarget_pos = turtle_position;
+            }
+            break;
+        case TERM:
+            std::cout << "0x" << std::hex << std::setfill('0') << std::setw(4) << data.u;
+            std::cout << std::dec << std::setfill(' ') << std::setw(5);
+            std::cout << "    unsigned: " << data.u;
+            std::cout << "    signed: " << data.s;
+            std::cout << "    char: ";
+            if(data.u < 256) {
+                std::cout << (char)(data.u);
+            }
+            else {
+                std::cout << "<out of range>";
+            }
+            std::cout << std::endl;
+            break;
+        default:
             break;
     }
     return;

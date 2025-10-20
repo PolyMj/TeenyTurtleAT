@@ -38,6 +38,9 @@ str [ INTERRUPT_ENABLE_REGISTER ], rA
 set rA, 0b000000000000000_1
 str [ CONTROL_STATUS_REGISTER ], rA
 
+set rA, 8
+str [ PEN_SIZE ], rA
+set rA, rZ
 
 !main
     str [ GOTO_XY ], rZ
@@ -47,20 +50,20 @@ str [ CONTROL_STATUS_REGISTER ], rA
 ;-------------------------------------------------
 !set_new_target_XY
     psh rA
+    ;; Set Target X/Y
     lod rA, [ RAND ]
-    mod rA, 640
+    mod rA, 60
+    add rA, 290
     str [ SET_X ], rA
-    lod rA, [ RAND ]
-    mod rA, 500
+    lod rA, [RAND]
+    mod rA, 60
+    add rA, 220
     str [ SET_Y ], rA
-    mod rA, 2
-    je !pen_goes_up
+    ;; Set pen color
     lod rA, [ RAND_BITS ]
     str [ PEN_COLOR ], rA
+    ;; Draw dot by placing pen down then bringing it back up
     str [ PEN_DOWN ], rZ
-    jmp !return
-!pen_goes_up
     str [ PEN_UP ], rZ
-!return
     pop rA
     rti
