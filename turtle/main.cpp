@@ -104,7 +104,7 @@
 #define DETECT_AHEAD   0xE005
 #define GET_COLOR_CHANGE  0xE010 // Load the current color change into the given register
 #define NEXT_COLOR_CHANGE 0xE011 // Loads the number of color changes remaining into the given register; loads the next color into the GET_COLOR_CHANGE peripheral
-#define STOP_MOVE      0xE012 // Cancels the current movement
+#define CANCEL_MOVE       0xE012 // Cancels the current movement
 #define TERM           0xE0F0
 
 #define TURTLE_INT_MOVE_DONE        TNY_XINT0
@@ -471,7 +471,7 @@ void bus_write(teenyat *t, tny_uword addr, tny_word data, uint16_t *delay) {
             turtle_heading = data.u;
             normalize_angle();
             break;
-        case STOP_MOVE:
+        case CANCEL_MOVE:
             if (color_change_set) {
                 turtle_subtarget_pos = last_color_change.old_position;
             }

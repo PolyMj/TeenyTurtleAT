@@ -39,6 +39,8 @@ void getColorChanges(Tigr *img, vec2p p1, vec2p p2, uint16_t r) {
 
     // Ignore colors that the turtle is currently sitting on
     checkCircle(img, p1, r, addColorsToSeen);
+
+    prev_position = p1;
  
     int16_t dx = p2.x - p1.x;
     int16_t dy = p2.y - p1.y;
@@ -64,7 +66,6 @@ void getColorChanges(Tigr *img, vec2p p1, vec2p p2, uint16_t r) {
 
     int16_t err = abs_dx - abs_dy;
 
-    prev_position = p1;
     while (p1.x != p2.x || p1.y != p2.y) {
         int16_t double_err = 2 * err;
 
@@ -92,11 +93,12 @@ void getColorChanges(Tigr *img, vec2p p1, vec2p p2, uint16_t r) {
 
 void checkVerticalLine(Tigr *img, uint16_t x1, uint16_t y1, uint16_t y2, uint16_t r)
 {
-    for (uint16_t x = max(0,x1-r); x < min(img->w, x1+r+1); ++x)
+    for (uint16_t x = max(0,x1-r+1); x < min(img->w, x1+r); ++x)
     {
         for (uint16_t y = min(y1, y2); y <= max(y1, y2); ++y)
         {
             checkForChange(img, {x,y});
+            prev_position = {x,y};
         }
     }
 
@@ -109,11 +111,12 @@ void checkVerticalLine(Tigr *img, uint16_t x1, uint16_t y1, uint16_t y2, uint16_
 
 void checkHorizontalLine(Tigr *img, uint16_t x1, uint16_t y1, uint16_t x2, uint16_t r)
 {
-    for (uint16_t y = max(0,y1-r); y < min(img->h, y1+r+1); ++y)
+    for (uint16_t y = max(0,y1-r+1); y < min(img->h, y1+r); ++y)
     {
         for (uint16_t x = min(x1, x2); x <= max(x1, x2); ++x)
         {
             checkForChange(img, {x,y});
+            prev_position = {x,y};
         }
     }
 
