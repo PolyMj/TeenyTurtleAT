@@ -35,6 +35,11 @@ set rA, !color_change_interrupt
 set rB, 10
 str [ INTERRUPT_VECTOR_TABLE + rB ], rA
 
+; Also install move-done ISR at external interrupt 8 (IVT[8])
+set rA, !move_done_interrupt
+set rB, 8
+str [ INTERRUPT_VECTOR_TABLE + rB ], rA
+
 ; Enable external interrupt 8
 set rA, 0b00000101_00000000
 str [ INTERRUPT_ENABLE_REGISTER ], rA
@@ -48,15 +53,19 @@ str [TURTLE_ANGLE], rA
 set rA, 1
 str [ MOVE ], rA
 
+set rE, 0 ; hit wall Flag
+
 !main
     jmp !main
 
 !color_change_interrupt
-
     ; Read current color-change value; if black/zero -> wall -> turn
     lod rA, [ GET_COLOR_CHANGE ]
     cmp rA, rZ
     je !wall
+    ; Non-wall color: clear hit-wall flag so future moves can proceed
+    set rE, 0
+    
     ; if red -> end of maze
     ror rA, 11
     cmp rA, 0b1111
@@ -69,34 +78,30 @@ str [ MOVE ], rA
 
 !wall
     str [ CANCEL_MOVE ], rZ ; Cancel movement that would take the turtle through the wall
+    cmp rE, rZ
+    je !first
 
-    ; --- wall detected: try rotate +90 and test ---
+    set rD, 1
+    cmp rE, rD
+    je !second
+
+!third
+    lod rB, [ TURTLE_ANGLE ]
+    set rC, 270
+    jmp !turn
+
+!first
+    inc rE
     lod rB, [ TURTLE_ANGLE ]
     set rC, 90
-    add rB, rC
-    str [ TURTLE_ANGLE ], rB
+    jmp !turn
 
-    ; check again
-    lod rA, [ DETECT_AHEAD ]
-    cmp rA, rZ
-    jne !return  ; open after +90
-
-    ; --- still blocked: rotate +180 from current (+90 -> +270 relative orig) ---
+!second
+    inc rE
     lod rB, [ TURTLE_ANGLE ]
     set rC, 180
+
+!turn
     add rB, rC
     str [ TURTLE_ANGLE ], rB
-
-    ; check again
-    lod rA, [ DETECT_AHEAD ]
-    cmp rA, rZ
-    jne !return  ; open after +180
-
-    ; --- still blocked: rotate -90 (from current) and then move ---
-    lod rB, [ TURTLE_ANGLE ]
-    set rC, 90
-    sub rB, rC
-    str [ TURTLE_ANGLE ], rB
-
-!return
     rti
