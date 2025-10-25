@@ -17,6 +17,8 @@
 #include "draw.hpp"
 #include "teenyat.h"
 #include "util.hpp"
+#include <unordered_set>
+#include <queue>
 
 using namespace std;
 
@@ -35,10 +37,14 @@ using namespace std;
 #define DETECT         0xE003
 #define SET_ERASER     0xE004
 #define DETECT_AHEAD   0xE005
+#define GET_COLOR_CHANGE  0xE010 // Load the current color change into the given register
+#define NEXT_COLOR_CHANGE 0xE011 // Loads the number of color changes remaining into the given register; loads the next color into the GET_COLOR_CHANGE peripheral
+#define STOP_MOVE      0xE012 // Cancels the current movement
 
 
 #define TURTLE_INT_MOVE_DONE        TNY_XINT0
 #define TURTLE_INT_HIT_EDGE         TNY_XINT1
+#define TURTLE_INT_COLOR_CHANGE     TNY_XINT2
 
 // Shared constants
 const int windowWidth = 640;
@@ -54,6 +60,20 @@ void rotate_turtle(Tigr* dest, Tigr* turtle, float cx, float cy, float angleDegr
 // Registry to map teenyat* -> instance
 struct TurtleInstance;
 static unordered_map<teenyat*, TurtleInstance*> g_registry;
+
+typedef struct ColorChange_data {
+    uint16_t new_color;
+    vec2p old_position;
+    bool operator==(const ColorChange_data &other) const {
+        return other.new_color == new_color;
+    }
+} ColorChange;
+
+struct CC_Hash {
+    size_t operator()(const ColorChange &cc) const {
+        return hash<uint16_t>()(cc.new_color);
+    }
+};
 
 // Per-instance state and behavior
 struct TurtleInstance {
@@ -73,6 +93,12 @@ struct TurtleInstance {
 
     vec2f subtarget_pos;
     bool move_done = false;
+    // color change detection state (per-instance)
+    queue<ColorChange> change_queue;
+    unordered_set<ColorChange, CC_Hash> seen_colors;
+    vec2p prev_position_for_detect;
+    ColorChange last_color_change;
+    bool color_change_set = false;
 
     // set defaults
     TurtleInstance(): position(vec2(320.0f,250.0f)), target_position(position), subtarget_pos(position) {}
@@ -112,6 +138,18 @@ struct TurtleInstance {
             case SET_Y:
                 data->u = target_position.y;
                 break;
+            case GET_COLOR_CHANGE:
+                data->u = last_color_change.new_color;
+                break;
+            case NEXT_COLOR_CHANGE:
+                data->u = change_queue.size();
+                if (change_queue.empty()) {
+                    color_change_set = false;
+                    break;
+                }
+                last_color_change = change_queue.front(); change_queue.pop();
+                color_change_set = true;
+                break;
             default:
                 data->u = 0;
                 break;
@@ -145,12 +183,15 @@ struct TurtleInstance {
                 break;
             case PEN_DOWN:
                 pen_down = true;
+                drawDot();
                 break;
             case PEN_COLOR:
                 pen_color = colorTo24b(data.u);
+                if (pen_down) drawDot();
                 break;
             case PEN_SIZE:
                 pen_size = data.u;
+                if (pen_down) drawDot();
                 break;
             case SET_X:
                 target_position.x = data.u;
@@ -163,8 +204,144 @@ struct TurtleInstance {
                 while(heading >= 360.0f) heading -= 360.0f;
                 while(heading < 0.0f) heading += 360.0f;
                 break;
+            case STOP_MOVE:
+                if (color_change_set) {
+                    subtarget_pos = last_color_change.old_position;
+                }
+                else {
+                    subtarget_pos = position;
+                }
+                break;
             default:
                 break;
+        }
+    }
+
+    // Draws a "dot" to the screen. Should be called when the pen is down and a change to the pen has been made. 
+    inline void drawDot() {
+        fillCircle(g_base_image, position, pen_size, pen_color, NULL);
+    }
+
+    void checkForChange(Tigr *img, vec2p pos) {
+        ColorChange cc = {
+            .new_color = colorTo16b(tigrGet(img, pos.x, pos.y)),
+            .old_position = prev_position_for_detect
+        };
+
+        auto [it, inserted] = seen_colors.insert(cc);
+        if (inserted) change_queue.push(cc);
+    }
+
+    void addColorsToSeen(Tigr *img, vec2p pos) {
+        ColorChange cc = {
+            .new_color = colorTo16b(tigrGet(img, pos.x, pos.y)),
+            .old_position = {0,0}
+        };
+
+        auto [it, inserted] = seen_colors.insert(cc);
+    }
+
+    void checkCircle(Tigr *img, vec2p c, uint16_t r) {
+        vec2p lbound, ubound;
+        lbound.x = max(0, c.x-r);
+        lbound.y = max(0, c.y-r);
+        ubound.x = min((uint16_t)img->w, (uint16_t)(c.x+r+1));
+        ubound.y = min((uint16_t)img->h, (uint16_t)(c.y+r+1));
+
+        for (int32_t x = lbound.x; x < ubound.x; ++x)
+        for (int32_t y = lbound.y; y < ubound.y; ++y)
+        {
+            int32_t res = (x-c.x)*(x-c.x) + (y-c.y)*(y-c.y) - r*r;
+            if (res < 0) checkForChange(img, {x,y});
+        }
+    }
+
+    void checkVerticalLine(Tigr *img, uint16_t x1, uint16_t y1, uint16_t y2, uint16_t r)
+    {
+        for (uint16_t x = max(0,x1-r); x < min(img->w, x1+r+1); ++x)
+        {
+            for (uint16_t y = min(y1, y2); y <= max(y1, y2); ++y)
+            {
+                checkForChange(img, {x,y});
+            }
+        }
+
+        if (r > 1)
+        {
+            checkCircle(img, {x1, y1}, r);
+            checkCircle(img, {x1, y2}, r);
+        }
+    }
+
+    void checkHorizontalLine(Tigr *img, uint16_t x1, uint16_t y1, uint16_t x2, uint16_t r)
+    {
+        for (uint16_t y = max(0,y1-r); y < min(img->h, y1+r+1); ++y)
+        {
+            for (uint16_t x = min(x1, x2); x <= max(x1, x2); ++x)
+            {
+                checkForChange(img, {x,y});
+            }
+        }
+
+        if (r > 1)
+        {
+            checkCircle(img, {x1, y1}, r);
+            checkCircle(img, {x2, y1}, r);
+        }
+    }
+
+    void detectColorChanges(Tigr *img, vec2p p1, vec2p p2, uint16_t r) {
+        // Reinitialize per-instance lists
+        change_queue = queue<ColorChange>();
+        seen_colors = unordered_set<ColorChange, CC_Hash>();
+
+        // Ignore colors that the turtle is currently sitting on
+        prev_position_for_detect = p1;
+        checkCircle(img, p1, r);
+
+        int16_t dx = p2.x - p1.x;
+        int16_t dy = p2.y - p1.y;
+
+        if (dx == 0)
+        {
+            checkVerticalLine(img, p1.x, p1.y, p2.y, r);
+            return;
+        }
+        if (dy == 0)
+        {
+            checkHorizontalLine(img, p1.x, p1.y, p2.x, r);
+            return;
+        }
+
+        int16_t sx = (dx > 0) ? 1 : -1;
+        int16_t sy = (dy > 0) ? 1 : -1;
+
+        int16_t abs_dx = abs(dx);
+        int16_t abs_dy = abs(dy);
+
+        int16_t err = abs_dx - abs_dy;
+
+        vec2p cur = p1;
+        prev_position_for_detect = p1;
+        while (cur.x != p2.x || cur.y != p2.y) {
+            int16_t double_err = 2 * err;
+
+            if (double_err > -abs_dy) {
+                cur.x += sx;
+                err -= abs_dy;
+            }
+
+            if (double_err < abs_dx) {
+                err += abs_dx;
+                cur.y += sy;
+            }
+
+            if (r <= 1)
+                checkForChange(img, cur);
+            else
+                checkCircle(img, cur, r);
+
+            prev_position_for_detect = cur;
         }
     }
 
@@ -191,7 +368,6 @@ struct TurtleInstance {
             subtarget_pos += move_amnt * dir;
             move_done = false;
         }
-        // NOTE: color-change ignored for now
     }
 
     void do_move_turtle(Tigr* base_image) {
@@ -303,8 +479,8 @@ int main(int argc, char *argv[]) {
     int cycles_until_frame = 0;
     while(!tigrClosed(window) && !tigrKeyDown(window, TK_ESCAPE)) {
         // advance each teenyat once per loop
-        for(auto &up : instances) {
-            tny_clock(&up->t);
+        for(auto &update : instances) {
+            tny_clock(&update->t);
         }
 
         --cycles_until_frame;
@@ -312,15 +488,26 @@ int main(int argc, char *argv[]) {
             tigrBlit(window, base_image, 0, 0, 0, 0, base_image->w, base_image->h);
 
             // draw each turtle
-            for(auto &up : instances) {
-                rotate_turtle(window, g_turtle_image, up->position.x, up->position.y, up->heading);
+            for(auto &update : instances) {
+                rotate_turtle(window, g_turtle_image, update->position.x, update->position.y, update->heading);
             }
 
-            // perform movement updates for each instance (do_move then calc_move)
-            for(auto &up : instances) {
-                if(up->move_target || up->move_forward) {
-                    up->do_move_turtle(base_image);
-                    up->calc_move_turtle();
+            // perform movement updates for each instance: calc -> detect -> do_move
+            for(auto &update : instances) {
+                if(update->move_target || update->move_forward) {
+                    // calculate next subtarget
+                    update->calc_move_turtle();
+
+                    // detect color changes along path from current -> subtarget
+                    update->detectColorChanges(base_image, update->position, update->subtarget_pos, turtle_size);
+                    if (!update->change_queue.empty()) {
+                        update->last_color_change = update->change_queue.front(); update->change_queue.pop();
+                        update->color_change_set = true;
+                        tny_external_interrupt(&update->t, TURTLE_INT_COLOR_CHANGE);
+                    }
+
+                    // commit the move
+                    update->do_move_turtle(base_image);
                 }
             }
 
