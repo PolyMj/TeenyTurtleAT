@@ -11,6 +11,7 @@
 #include <memory>
 #include <string>
 #include <ctime>
+#include <random>
 
 #include "vec.hpp"
 #include "tigr.h"
@@ -37,14 +38,16 @@ using namespace std;
 #define DETECT         0xE003
 #define SET_ERASER     0xE004
 #define DETECT_AHEAD   0xE005
-#define GET_COLOR_CHANGE  0xE010 // Load the current color change into the given register
-#define NEXT_COLOR_CHANGE 0xE011 // Loads the number of color changes remaining into the given register; loads the next color into the GET_COLOR_CHANGE peripheral
-#define STOP_MOVE      0xE012 // Cancels the current movement
+#define GET_COLOR_CHANGE  0xE010
+#define NEXT_COLOR_CHANGE 0xE011
+#define STOP_MOVE      0xE012
+#define TURTLE_COLLISON_ON    0xF001
 
 
 #define TURTLE_INT_MOVE_DONE        TNY_XINT0
 #define TURTLE_INT_HIT_EDGE         TNY_XINT1
 #define TURTLE_INT_COLOR_CHANGE     TNY_XINT2
+#define TURTLE_INT_COLLISON         TNY_XINT3
 
 // Shared constants
 const int windowWidth = 640;
@@ -54,6 +57,9 @@ const uint16_t detect_ahead_distance = 15;
 const int FPS = 60;
 const int cycles_per_frame = 1e6 / FPS;
 const float speed_fps_adjust = 60.0f / (float)(FPS);
+
+bool collision = false;
+bool random_start_pos = true;
 
 void rotate_turtle(Tigr* dest, Tigr* turtle, float cx, float cy, float angleDegrees);
 
@@ -93,6 +99,8 @@ struct TurtleInstance {
 
     vec2f subtarget_pos;
     bool move_done = false;
+    bool do_move = true;
+
     // color change detection state (per-instance)
     queue<ColorChange> change_queue;
     unordered_set<ColorChange, CC_Hash> seen_colors;
@@ -211,6 +219,9 @@ struct TurtleInstance {
                 else {
                     subtarget_pos = position;
                 }
+                break;
+            case TURTLE_COLLISON_ON:
+                collision = true;
                 break;
             default:
                 break;
@@ -419,6 +430,8 @@ struct TurtleInstance {
     }
 };
 
+float collision_distance(TurtleInstance* T1, TurtleInstance* T2);
+
 // Bus wrapper callbacks used by teenyat (they lookup the instance)
 static Tigr* g_base_image = nullptr;
 static Tigr* g_turtle_image = nullptr;
@@ -469,6 +482,12 @@ int main(int argc, char *argv[]) {
     if(!g_turtle_image) tigrError(0, "Could not load Turtle.png");
 
     // Create instances
+    // host RNG for initial turtle placement (avoid dependent identical seeds)
+    mt19937_64 host_rng((uint64_t)time(NULL) ^ (uintptr_t)window);
+    uniform_real_distribution<float> dist_x((float)turtle_size, (float)(windowWidth - turtle_size));
+    uniform_real_distribution<float> dist_y((float)turtle_size, (float)(windowHeight - turtle_size));
+    uniform_real_distribution<float> dist_a(0.0f, 360.0f);
+
     for(int i = 0; i < num_turtles; ++i) {
         auto inst = make_unique<TurtleInstance>();
 
@@ -491,6 +510,18 @@ int main(int argc, char *argv[]) {
         uint64_t timev = (uint64_t)time(NULL);
         inst->t.random.state ^= (uint64_t)(mix * 6364136223846793005ULL) + (timev << 3) + (uint64_t)i;
         inst->t.random.increment |= (uint64_t)(i * 2 + 1);
+
+        if (random_start_pos) {
+            // Use host RNG for initial placement to ensure good distribution
+            float rand_x = dist_x(host_rng);
+            float rand_y = dist_y(host_rng);
+            float rand_angle = dist_a(host_rng);
+
+            inst->position = vec2f(rand_x, rand_y);
+            inst->target_position = inst->position;
+            inst->subtarget_pos = inst->position;
+            inst->heading = rand_angle;
+        }
 
         // register mapping
         g_registry[&inst->t] = inst.get();
@@ -518,7 +549,20 @@ int main(int argc, char *argv[]) {
             for(auto &update : instances) {
                 if(update->move_target || update->move_forward) {
                     update->calc_move_turtle(base_image);
-                    update->do_move_turtle(base_image);
+                    if (collision) {
+                        for(auto &inst : instances) {
+                            if (update.get() != inst.get()) {
+                                float dist = collision_distance(update.get(), inst.get());
+                                if (dist < (turtle_size * 2)) {
+                                    tny_external_interrupt(&update->t, TURTLE_INT_COLLISON);
+                                    update->do_move = false;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if (update->do_move) update->do_move_turtle(base_image);
+                    update->do_move = true;
                 }
             }
 
@@ -534,6 +578,12 @@ int main(int argc, char *argv[]) {
 
     return EXIT_SUCCESS;
 }
+
+float collision_distance(TurtleInstance* T1, TurtleInstance* T2) {
+    vec2f temp = (T1->subtarget_pos - T2->subtarget_pos);
+    return sqrt((temp.x * temp.x) + (temp.y * temp.y));
+}
+
 
 void rotate_turtle(Tigr* dest, Tigr* turtle, float cx, float cy, float angleDegrees) {
     float angle = angleDegrees * (M_PI / 180.0f);
