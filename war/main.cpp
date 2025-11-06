@@ -17,6 +17,12 @@ using namespace std;
 #define DETECT_BACKWARD 0xE001
 #define DETECT_LEFT     0xE002
 #define DETECT_RIGHT    0xE003
+#define CURRENT_HEALTH  0xF000
+#define ALVIE_UNITS     0xF001
+#define DEAD_UNITS      0xF002
+
+#define DAMANGE_INTERRUPT   TNY_XINT0
+#define STAR_INTERRUPT      TNY_XINT1
 
 enum UnitType {
     UNIT_STAR,
@@ -45,6 +51,10 @@ int   windowHeight = 500;
 const int FPS = 60;
 const int cycles_per_frame = 1e6 / FPS;
 
+vector<Star> star_list;
+vector<Square> square_list;
+vector<Circle> circle_list;
+vector<Triangle> triangle_list;
 
 struct Unit {
     teenyat t;
@@ -75,6 +85,26 @@ struct Triangle : Unit {
 
 };
 
+inline uint16_t healthToInt(const float &h) { return round(h); }
+inline float healthToFloat(const uint16_t &h) { return float(h); }
+
+template<typename T>
+void countUnits(const vector<T> &units, uint16_t *total, uint16_t *alive, uint16_t *dead) {
+    for (const auto &u : units) {
+        if (total) ++(*total);
+        if (u.health > 0)
+            if (alive) ++(*alive);
+        else
+            if (dead) ++(*dead);
+    }
+}
+
+void countUnits(uint16_t *total, uint16_t *alive, uint16_t *dead) {
+    countUnits(star_list, total, alive, dead);
+    countUnits(square_list, total, alive, dead);
+    countUnits(circle_list, total, alive, dead);
+    countUnits(triangle_list, total, alive, dead);
+}
 
 int main(int argc, char *argv[]) {
 
@@ -103,11 +133,6 @@ int main(int argc, char *argv[]) {
 
     get_counts(player1_unit_counts, player1_points_path);
     get_counts(player2_unit_counts, player2_points_path);
-
-    vector<Star> star_list;
-    vector<Square> square_list;
-    vector<Circle> circle_list;
-    vector<Triangle> triangle_list;
    
     star_list.reserve(2);
     square_list.reserve(player1_unit_counts[0] + player2_unit_counts[0]);
@@ -268,7 +293,17 @@ void bus_read(teenyat *t, tny_uword addr, tny_word *data, uint16_t *delay) {
     }
 
     switch(addr) {
-
+        case CURRENT_HEALTH:
+            data->u = healthToInt(unit->health);
+            break;
+        case ALVIE_UNITS:
+            data->u = 0;
+            countUnits(NULL, &(data->u), NULL);
+            break;
+        case DEAD_UNITS:
+            data->u = 0;
+            countUnits(NULL, &(data->u), NULL);
+            break;
     }
     return;
 }
