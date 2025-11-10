@@ -280,6 +280,18 @@ void bus_write(teenyat *t, tny_uword addr, tny_word data, uint16_t *delay) {
     }
 
     switch(addr) {
+        case MOVE_FORWARD:
+            unit->position.y += unit->speed;
+            break;
+        case MOVE_BACKWARD:
+            unit->position.y -= unit->speed;
+            break;
+        case MOVE_LEFT:
+            unit->position.x -= unit->speed;
+            break;
+        case MOVE_RIGHT:
+            unit->position.x += unit->speed;
+            break;
 
     }
     return;
