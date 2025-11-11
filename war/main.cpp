@@ -51,11 +51,6 @@ int   windowHeight = 500;
 const int FPS = 60;
 const int cycles_per_frame = 1e6 / FPS;
 
-vector<Star> star_list;
-vector<Square> square_list;
-vector<Circle> circle_list;
-vector<Triangle> triangle_list;
-
 struct Unit {
     teenyat t;
 
@@ -84,6 +79,12 @@ struct Circle : Unit {
 struct Triangle : Unit {
 
 };
+
+vector<Star> star_list;
+vector<Square> square_list;
+vector<Circle> circle_list;
+vector<Triangle> triangle_list;
+
 
 inline uint16_t healthToInt(const float &h) { return round(h); }
 inline float healthToFloat(const uint16_t &h) { return float(h); }
