@@ -188,19 +188,19 @@ int main(int argc, char *argv[]) {
         for (auto &star : star_list) {
             tny_clock(&star.t);
         }
-        
-        for (auto &square : square_list) {
-            tny_clock(&square.t);
-        }
-        
-        for (auto &circle : circle_list) {
-            tny_clock(&circle.t);
-        }
-        
+
         for (auto &triangle : triangle_list) {
             tny_clock(&triangle.t);
         }
 
+        for (auto &circle : circle_list) {
+            tny_clock(&circle.t);
+        }
+    
+        for (auto &square : square_list) {
+            tny_clock(&square.t);
+        }
+        
         --cycles_until_frame;
         if(cycles_until_frame < 0) {
             /* Move base_image ontop of our window */
