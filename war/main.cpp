@@ -134,7 +134,7 @@ int main(int argc, char *argv[]) {
 
     get_counts(player1_unit_counts, player1_points_path);
     get_counts(player2_unit_counts, player2_points_path);
-   
+
     star_list.reserve(2);
     square_list.reserve(player1_unit_counts[0] + player2_unit_counts[0]);
     circle_list.reserve(player1_unit_counts[1] + player2_unit_counts[1]);
@@ -142,37 +142,37 @@ int main(int argc, char *argv[]) {
 
 
     // Player 1 units
-    create_units(star_list, player1_star_path, 1, UNIT_STAR, 
+    create_units(star_list, player1_star_path, 1, UNIT_STAR,
                  1,
                  bus_read, bus_write);
 
 
-    create_units(square_list, player1_square_path, 1, UNIT_SQUARE, 
+    create_units(square_list, player1_square_path, 1, UNIT_SQUARE,
                  player1_unit_counts[0],
                  bus_read, bus_write);
-    
-    create_units(circle_list, player1_circle_path, 1, UNIT_CIRCLE, 
+
+    create_units(circle_list, player1_circle_path, 1, UNIT_CIRCLE,
                  player1_unit_counts[1],
                  bus_read, bus_write);
-    
-    create_units(triangle_list, player1_triangle_path, 1, UNIT_TRIANGLE, 
+
+    create_units(triangle_list, player1_triangle_path, 1, UNIT_TRIANGLE,
                  player1_unit_counts[2],
                  bus_read, bus_write);
-    
+
     // Player 2 units
-    create_units(star_list, player2_star_path, 2, UNIT_STAR, 
+    create_units(star_list, player2_star_path, 2, UNIT_STAR,
                  1,
                  bus_read, bus_write);
-                 
-    create_units(square_list, player2_square_path, 2, UNIT_SQUARE, 
+
+    create_units(square_list, player2_square_path, 2, UNIT_SQUARE,
                  player2_unit_counts[0],
                  bus_read, bus_write);
-    
-    create_units(circle_list, player2_circle_path, 2, UNIT_CIRCLE, 
+
+    create_units(circle_list, player2_circle_path, 2, UNIT_CIRCLE,
                  player2_unit_counts[1],
                  bus_read, bus_write);
-    
-    create_units(triangle_list, player2_triangle_path, 2, UNIT_TRIANGLE, 
+
+    create_units(triangle_list, player2_triangle_path, 2, UNIT_TRIANGLE,
                  player2_unit_counts[2], bus_read, bus_write);
 
 
@@ -197,11 +197,11 @@ int main(int argc, char *argv[]) {
         for (auto &circle : circle_list) {
             tny_clock(&circle.t);
         }
-    
+
         for (auto &square : square_list) {
             tny_clock(&square.t);
         }
-        
+
         --cycles_until_frame;
         if(cycles_until_frame < 0) {
             /* Move base_image ontop of our window */
@@ -249,9 +249,9 @@ void get_counts(int points[], string file_path) {
 }
 
 template<typename T>
-void create_units(vector<T> &unit_list, const string &bin_path, 
+void create_units(vector<T> &unit_list, const string &bin_path,
                   int player_number, UnitType unit_type_id, int count,
-                  TNY_READ_FROM_BUS_FNPTR bus_read, 
+                  TNY_READ_FROM_BUS_FNPTR bus_read,
                   TNY_WRITE_TO_BUS_FNPTR bus_write) {
     for (int i = 0; i < count; i++) {
         T new_unit;
