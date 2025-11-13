@@ -3,6 +3,8 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <random>
+#include <algorithm> 
 #include "vec.hpp"
 #include "tigr.h"
 #include "teenyat.h"
@@ -181,25 +183,59 @@ int main(int argc, char *argv[]) {
     tigrClear(window, tigrRGB(255, 255, 255));
     tigrClear(base_image, tigrRGB(255, 255, 255));
 
+    vector<Star*> star_random_order;
+    vector<Triangle*> triangle_random_order;
+    vector<Circle*> circle_random_order;    
+    vector<Square*> square_random_order;
+
+    star_random_order.reserve(star_list.size());
+    triangle_random_order.reserve(triangle_list.size());
+    circle_random_order.reserve(circle_list.size());
+    square_random_order.reserve(square_list.size());
+
+    for (auto &star : star_list) {
+        star_random_order.push_back(&star);
+    }
+
+    for (auto &triangle : triangle_list) {
+        triangle_random_order.push_back(&triangle);
+    }
+
+    for (auto &circle : circle_list) {
+        circle_random_order.push_back(&circle);
+    }
+
+    for (auto &square : square_list) {
+        square_random_order.push_back(&square);
+    }
+
+    random_device rd;
+    mt19937 rng(rd());
 
     int cycles_until_frame = 0;
     while(!tigrClosed(window) && !tigrKeyDown(window, TK_ESCAPE)) {
 
+        // Randomize order
+        shuffle(star_random_order.begin(), star_random_order.end(), rng);
+        shuffle(triangle_random_order.begin(), triangle_random_order.end(), rng);
+        shuffle(circle_random_order.begin(), circle_random_order.end(), rng);
+        shuffle(square_random_order.begin(), square_random_order.end(), rng);
+
         // Clock all teenyat instances
-        for (auto &star : star_list) {
-            tny_clock(&star.t);
+        for (Star* star : star_random_order) {
+            tny_clock(&star->t);
         }
 
-        for (auto &triangle : triangle_list) {
-            tny_clock(&triangle.t);
+        for (Triangle* triangle : triangle_random_order) {
+            tny_clock(&triangle->t);
         }
 
-        for (auto &circle : circle_list) {
-            tny_clock(&circle.t);
+        for (Circle* circle : circle_random_order) {
+            tny_clock(&circle->t);
         }
 
-        for (auto &square : square_list) {
-            tny_clock(&square.t);
+        for (Square* square : square_random_order) {
+            tny_clock(&square->t);
         }
 
         --cycles_until_frame;
