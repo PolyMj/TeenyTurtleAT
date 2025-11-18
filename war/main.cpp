@@ -118,20 +118,20 @@ void countUnits(uint16_t *total, uint16_t *alive, uint16_t *dead) {
     countUnits(triangle_list, total, alive, dead);
 }
 
-void draw_unit(struct Unit unit) {
+void draw_unit(struct Unit* unit) {
     /* Assign unit color based on which player they are */
-    switch(unit.type) {
+    switch(unit->type) {
         case UNIT_STAR:
         case UNIT_TRIANGLE:
-            tigrBlitAlpha(base_image, unit.texture, unit.position.x - (unit.texture->w / 2), unit.position.y - (unit.texture->h / 2),
-                          0, 0, unit.texture->w, unit.texture->h, 1.0f);
+            tigrBlitAlpha(base_image, unit->texture, unit->position.x - (unit->texture->w / 2), unit->position.y - (unit->texture->h / 2),
+                          0, 0, unit->texture->w, unit->texture->h, 1.0f);
             break;
         case UNIT_CIRCLE:
-            tigrFillCircle(base_image, unit.position.x, unit.position.y, (int)unit.size/2, unit.color);
+            tigrFillCircle(base_image, unit->position.x, unit->position.y, (int)unit->size/2, unit->color);
             break;
         case UNIT_SQUARE:
             /* draw rectangles at center of x,y */
-            tigrFillRect(base_image, unit.position.x-(unit.size/2), unit.position.y-(unit.size/2), unit.size, unit.size, unit.color);
+            tigrFillRect(base_image, unit->position.x-(unit->size/2), unit->position.y-(unit->size/2), unit->size, unit->size, unit->color);
             break;
         default:
             break;
@@ -262,23 +262,23 @@ int main(int argc, char *argv[]) {
         shuffle(square_random_order.begin(), square_random_order.end(), rng);
 
         // Clock all teenyat instances
-        for (auto &star : star_list) {
-            tny_clock(&star.t);
+        for (auto &star : star_random_order) {
+            tny_clock(&star->t);
             draw_unit(star);
         }
 
-        for (auto &triangle : triangle_list) {
-            tny_clock(&triangle.t);
+        for (auto &triangle : triangle_random_order) {
+            tny_clock(&triangle->t);
             draw_unit(triangle);
         }
 
-        for (auto &circle : circle_list) {
-            tny_clock(&circle.t);
+        for (auto &circle : circle_random_order) {
+            tny_clock(&circle->t);
             draw_unit(circle);
         }
 
-        for (auto &square : square_list) {
-            tny_clock(&square.t);
+        for (auto &square : square_random_order) {
+            tny_clock(&square->t);
             draw_unit(square);
         }
 
