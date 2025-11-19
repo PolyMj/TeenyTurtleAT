@@ -3,6 +3,8 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <random>
+#include <algorithm>
 #include "vec.hpp"
 #include "tigr.h"
 #include "teenyat.h"
@@ -44,17 +46,16 @@ void create_units(vector<T> &unit_list, const string &bin_path,
 
 Tigr* window;
 Tigr* base_image;
+Tigr* red_star_image;
+Tigr* blue_star_image;
+Tigr* red_triangle_image;
+Tigr* blue_triangle_image;
 
-int   windowWidth = 640;
-int   windowHeight = 500;
+const int   windowWidth = 640;
+const int   windowHeight = 500;
 
 const int FPS = 60;
 const int cycles_per_frame = 1e6 / FPS;
-
-vector<Star> star_list;
-vector<Square> square_list;
-vector<Circle> circle_list;
-vector<Triangle> triangle_list;
 
 struct Unit {
     teenyat t;
@@ -67,6 +68,11 @@ struct Unit {
     float speed;
 
     vec2f position;
+
+    TPixel color;
+    Tigr*  texture;
+
+    int size;
 };
 
 struct Star : Unit {
@@ -84,6 +90,12 @@ struct Circle : Unit {
 struct Triangle : Unit {
 
 };
+
+vector<Star> star_list;
+vector<Square> square_list;
+vector<Circle> circle_list;
+vector<Triangle> triangle_list;
+
 
 inline uint16_t healthToInt(const float &h) { return round(h); }
 inline float healthToFloat(const uint16_t &h) { return float(h); }
@@ -104,6 +116,27 @@ void countUnits(uint16_t *total, uint16_t *alive, uint16_t *dead) {
     countUnits(square_list, total, alive, dead);
     countUnits(circle_list, total, alive, dead);
     countUnits(triangle_list, total, alive, dead);
+}
+
+void draw_unit(struct Unit* unit) {
+    /* Assign unit color based on which player they are */
+    switch(unit->type) {
+        case UNIT_STAR:
+        case UNIT_TRIANGLE:
+            tigrBlitAlpha(base_image, unit->texture, unit->position.x - (unit->texture->w / 2), unit->position.y - (unit->texture->h / 2),
+                          0, 0, unit->texture->w, unit->texture->h, 1.0f);
+            break;
+        case UNIT_CIRCLE:
+            tigrFillCircle(base_image, unit->position.x, unit->position.y, (int)unit->size/2, unit->color);
+            break;
+        case UNIT_SQUARE:
+            /* draw rectangles at center of x,y */
+            tigrFillRect(base_image, unit->position.x-(unit->size/2), unit->position.y-(unit->size/2), unit->size, unit->size, unit->color);
+            break;
+        default:
+            break;
+    }
+    return;
 }
 
 int main(int argc, char *argv[]) {
@@ -133,72 +166,120 @@ int main(int argc, char *argv[]) {
 
     get_counts(player1_unit_counts, player1_points_path);
     get_counts(player2_unit_counts, player2_points_path);
-   
+
     star_list.reserve(2);
     square_list.reserve(player1_unit_counts[0] + player2_unit_counts[0]);
     circle_list.reserve(player1_unit_counts[1] + player2_unit_counts[1]);
     triangle_list.reserve(player1_unit_counts[2] + player2_unit_counts[2]);
 
+    red_triangle_image = tigrLoadImage("img/Red_Triangle.png");
+    if(!red_triangle_image) tigrError(0, "Could not img/Red_Triangle.png");
+
+    blue_triangle_image = tigrLoadImage("img/Blue_Triangle.png");
+    if(!blue_triangle_image) tigrError(0, "Could not img/Blue_Triangle.png");
+
+    red_star_image = tigrLoadImage("img/Red_Star.png");
+    if(!red_star_image) tigrError(0, "Could not img/Red_Star.png");
+
+    blue_star_image = tigrLoadImage("img/Blue_Star.png");
+    if(!blue_star_image) tigrError(0, "Could not img/Blue_Star.png");
 
     // Player 1 units
-    create_units(star_list, player1_star_path, 1, UNIT_STAR, 
+    create_units(star_list, player1_star_path, 1, UNIT_STAR,
                  1,
                  bus_read, bus_write);
 
 
-    create_units(square_list, player1_square_path, 1, UNIT_SQUARE, 
+    create_units(square_list, player1_square_path, 1, UNIT_SQUARE,
                  player1_unit_counts[0],
                  bus_read, bus_write);
-    
-    create_units(circle_list, player1_circle_path, 1, UNIT_CIRCLE, 
+
+    create_units(circle_list, player1_circle_path, 1, UNIT_CIRCLE,
                  player1_unit_counts[1],
                  bus_read, bus_write);
-    
-    create_units(triangle_list, player1_triangle_path, 1, UNIT_TRIANGLE, 
+
+    create_units(triangle_list, player1_triangle_path, 1, UNIT_TRIANGLE,
                  player1_unit_counts[2],
                  bus_read, bus_write);
-    
+
     // Player 2 units
-    create_units(star_list, player2_star_path, 2, UNIT_STAR, 
-                 1,
-                 bus_read, bus_write);
-                 
-    create_units(square_list, player2_square_path, 2, UNIT_SQUARE, 
+    create_units(star_list, player2_star_path, 2, UNIT_STAR,
+                1,
+                bus_read, bus_write);
+
+    create_units(square_list, player2_square_path, 2, UNIT_SQUARE,
                  player2_unit_counts[0],
                  bus_read, bus_write);
-    
-    create_units(circle_list, player2_circle_path, 2, UNIT_CIRCLE, 
+
+    create_units(circle_list, player2_circle_path, 2, UNIT_CIRCLE,
                  player2_unit_counts[1],
                  bus_read, bus_write);
-    
-    create_units(triangle_list, player2_triangle_path, 2, UNIT_TRIANGLE, 
-                 player2_unit_counts[2], bus_read, bus_write);
 
+    create_units(triangle_list, player2_triangle_path, 2, UNIT_TRIANGLE,
+                 player2_unit_counts[2], bus_read, bus_write);
 
     window = tigrWindow(windowWidth, windowHeight, "Teeny WAR", TIGR_FIXED);
     base_image = tigrBitmap(window->w, window->h);
     tigrClear(window, tigrRGB(255, 255, 255));
     tigrClear(base_image, tigrRGB(255, 255, 255));
 
+    vector<Star*> star_random_order;
+    vector<Triangle*> triangle_random_order;
+    vector<Circle*> circle_random_order;    
+    vector<Square*> square_random_order;
+
+    star_random_order.reserve(star_list.size());
+    triangle_random_order.reserve(triangle_list.size());
+    circle_random_order.reserve(circle_list.size());
+    square_random_order.reserve(square_list.size());
+
+    for (auto &star : star_list) {
+        star_random_order.push_back(&star);
+    }
+
+    for (auto &triangle : triangle_list) {
+        triangle_random_order.push_back(&triangle);
+    }
+
+    for (auto &circle : circle_list) {
+        circle_random_order.push_back(&circle);
+    }
+
+    for (auto &square : square_list) {
+        square_random_order.push_back(&square);
+    }
+
+    random_device rd;
+    mt19937 rng(rd());
 
     int cycles_until_frame = 0;
     while(!tigrClosed(window) && !tigrKeyDown(window, TK_ESCAPE)) {
 
+        // Randomize order
+        shuffle(star_random_order.begin(), star_random_order.end(), rng);
+        shuffle(triangle_random_order.begin(), triangle_random_order.end(), rng);
+        shuffle(circle_random_order.begin(), circle_random_order.end(), rng);
+        shuffle(square_random_order.begin(), square_random_order.end(), rng);
+
         // Clock all teenyat instances
-        for (auto &star : star_list) {
-            tny_clock(&star.t);
+        for (auto &star : star_random_order) {
+            tny_clock(&star->t);
+            draw_unit(star);
         }
-        
-        for (auto &square : square_list) {
-            tny_clock(&square.t);
+
+        for (auto &triangle : triangle_random_order) {
+            tny_clock(&triangle->t);
+            draw_unit(triangle);
         }
-        
-        for (auto &circle : circle_list) {
-            tny_clock(&circle.t);
+
+        for (auto &circle : circle_random_order) {
+            tny_clock(&circle->t);
+            draw_unit(circle);
         }
-        
-        for (auto &triangle : triangle_list) {
-            tny_clock(&triangle.t);
+
+        for (auto &square : square_random_order) {
+            tny_clock(&square->t);
+            draw_unit(square);
         }
 
         --cycles_until_frame;
@@ -248,20 +329,39 @@ void get_counts(int points[], string file_path) {
 }
 
 template<typename T>
-void create_units(vector<T> &unit_list, const string &bin_path, 
+void create_units(vector<T> &unit_list, const string &bin_path,
                   int player_number, UnitType unit_type_id, int count,
-                  TNY_READ_FROM_BUS_FNPTR bus_read, 
+                  TNY_READ_FROM_BUS_FNPTR bus_read,
                   TNY_WRITE_TO_BUS_FNPTR bus_write) {
+
+    int start_heights[4] = {45, 100, 120, 140};
+    const int start_width_offset = (windowWidth / 2) - 50;
     for (int i = 0; i < count; i++) {
         T new_unit;
 
         // Set basic unit fields
         new_unit.type = unit_type_id;
         new_unit.player = player_number;
+        new_unit.color = (player_number == 1) ? TPixel{237,28,36,255} : TPixel{0,162,232,255};
+        new_unit.size = 15;
+
+        int start_y = start_heights[unit_type_id];
+        if(player_number == 1) start_y = windowHeight - start_y;
+
+        new_unit.position = {start_width_offset + (25 *  i), start_y};
+
+        if(unit_type_id == UNIT_STAR) {
+            new_unit.texture    = (player_number == 1) ? red_star_image : blue_star_image;
+            new_unit.position.x = windowWidth / 2;
+        }
+
+        if(unit_type_id == UNIT_TRIANGLE) {
+            new_unit.texture = (player_number == 1) ? red_triangle_image : blue_triangle_image;
+        }
+
         // new_unit.health = 100.0f;
         // new_unit.damage = 10.0f;
         // new_unit.speed = 1.0f;
-        // new_unit.position = {0.0f, 0.0f};
 
         // Initialize the teenyat instance from the .bin
         FILE* bin_file = fopen(bin_path.c_str(), "rb");
