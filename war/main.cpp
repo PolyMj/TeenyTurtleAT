@@ -55,17 +55,17 @@ const int   windowWidth = 640;
 const int   windowHeight = 500;
 
 const int FPS = 60;
-const int cycles_per_frame = 1e6 / FPS;
+const int cycles_per_frame = 1e3 / FPS;
 
 struct Unit {
     teenyat t;
 
     UnitType type;
 
-    int player;
-    float health;
-    float damage;
-    float speed;
+    int player = 0;
+    float health = 100;
+    float damage = 0;
+    float speed = 1;
 
     vec2f position;
 
@@ -264,26 +264,29 @@ int main(int argc, char *argv[]) {
         // Clock all teenyat instances
         for (auto &star : star_random_order) {
             tny_clock(&star->t);
-            draw_unit(star);
         }
 
         for (auto &triangle : triangle_random_order) {
             tny_clock(&triangle->t);
-            draw_unit(triangle);
         }
 
         for (auto &circle : circle_random_order) {
             tny_clock(&circle->t);
-            draw_unit(circle);
         }
 
         for (auto &square : square_random_order) {
             tny_clock(&square->t);
-            draw_unit(square);
         }
 
         --cycles_until_frame;
         if(cycles_until_frame < 0) {
+            tigrClear(base_image, {255,255,255,255});
+
+            for (auto &star : star_list) draw_unit(&star);
+            for (auto &square : square_list) draw_unit(&square);
+            for (auto &circle : circle_list) draw_unit(&circle);
+            for (auto &triangle : triangle_list) draw_unit(&triangle);
+
             /* Move base_image ontop of our window */
             tigrBlit(window, base_image, 0, 0, 0, 0, base_image->w, base_image->h);
 
@@ -416,16 +419,28 @@ void bus_write(teenyat *t, tny_uword addr, tny_word data, uint16_t *delay) {
 
     switch(addr) {
         case MOVE_FORWARD:
-            unit->position.y += unit->speed;
+            if (unit->player == 2)
+                unit->position.y += unit->speed;
+            else
+                unit->position.y -= unit->speed;
             break;
         case MOVE_BACKWARD:
-            unit->position.y -= unit->speed;
+            if (unit->player == 2)
+                unit->position.y -= unit->speed;
+            else
+                unit->position.y += unit->speed;
             break;
         case MOVE_LEFT:
-            unit->position.x -= unit->speed;
+            if (unit->player == 2)
+                unit->position.x += unit->speed;
+            else
+                unit->position.x -= unit->speed;
             break;
         case MOVE_RIGHT:
-            unit->position.x += unit->speed;
+            if (unit->player == 2)
+                unit->position.x -= unit->speed;
+            else
+                unit->position.x += unit->speed;
             break;
 
     }
