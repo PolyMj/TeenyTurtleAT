@@ -26,6 +26,8 @@ using namespace std;
 #define DAMANGE_INTERRUPT   TNY_XINT0
 #define STAR_INTERRUPT      TNY_XINT1
 
+#define UPDATES_UNTIL_DAMAGE 20
+
 enum UnitType {
     UNIT_STAR,
     UNIT_SQUARE,
@@ -56,6 +58,8 @@ const int   windowHeight = 500;
 
 const int FPS = 60;
 const int cycles_per_frame = 1e3 / FPS;
+
+bool damage_possible = false;
 
 struct Unit {
     teenyat t;
@@ -135,6 +139,10 @@ void draw_unit(struct Unit* unit) {
             break;
         default:
             break;
+    }
+    tigrCircle(base_image, unit->position.x, unit->position.y, (int)unit->size/1.5, unit->color);
+    if(damage_possible) {
+        tigrCircle(base_image, unit->position.x, unit->position.y, (int)unit->size, unit->color);
     }
     return;
 }
@@ -253,6 +261,7 @@ int main(int argc, char *argv[]) {
     mt19937 rng(rd());
 
     int cycles_until_frame = 0;
+    int frames_until_damage_tick = UPDATES_UNTIL_DAMAGE;
     while(!tigrClosed(window) && !tigrKeyDown(window, TK_ESCAPE)) {
 
         tigrClear(base_image, tigrRGB(255, 255, 255)); 
@@ -284,6 +293,12 @@ int main(int argc, char *argv[]) {
         if(cycles_until_frame < 0) {
             tigrClear(base_image, {255,255,255,255});
 
+            frames_until_damage_tick--;
+            if(frames_until_damage_tick < 0) {
+                frames_until_damage_tick = UPDATES_UNTIL_DAMAGE;
+                damage_possible = true;
+            }
+
             for (auto &star : star_list) draw_unit(&star);
             for (auto &square : square_list) draw_unit(&square);
             for (auto &circle : circle_list) draw_unit(&circle);
@@ -294,6 +309,8 @@ int main(int argc, char *argv[]) {
 
             tigrUpdate(window);
             cycles_until_frame = cycles_per_frame;
+            damage_possible = false;
+
         }
     }
 
@@ -358,6 +375,7 @@ void create_units(vector<T> &unit_list, const string &bin_path,
         if(unit_type_id == UNIT_STAR) {
             new_unit.texture    = (player_number == 1) ? red_star_image : blue_star_image;
             new_unit.position.x = windowWidth / 2;
+            new_unit.size = 30;
         }
 
         if(unit_type_id == UNIT_TRIANGLE) {
