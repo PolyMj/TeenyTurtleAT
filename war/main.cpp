@@ -99,7 +99,7 @@ vector<Star> star_list;
 vector<Square> square_list;
 vector<Circle> circle_list;
 vector<Triangle> triangle_list;
-vector<Unit> unit_list;
+vector<Unit*> unit_list;
 
 inline uint16_t healthToInt(const float &h) { return round(h); }
 inline float healthToFloat(const uint16_t &h) { return float(h); }
@@ -243,22 +243,22 @@ int main(int argc, char *argv[]) {
 
     for (auto &star : star_list) {
         star_random_order.push_back(&star);
-        unit_list.push_back(star);
+        unit_list.push_back(&star);
     }
 
     for (auto &triangle : triangle_list) {
         triangle_random_order.push_back(&triangle);
-        unit_list.push_back(triangle);
+        unit_list.push_back(&triangle);
     }
 
     for (auto &circle : circle_list) {
         circle_random_order.push_back(&circle);
-        unit_list.push_back(circle);
+        unit_list.push_back(&circle);
     }
 
     for (auto &square : square_list) {
         square_random_order.push_back(&square);
-        unit_list.push_back(square);
+        unit_list.push_back(&square);
     }
 
     random_device rd;
@@ -437,8 +437,9 @@ void bus_read(teenyat *t, tny_uword addr, tny_word *data, uint16_t *delay) {
 }
 
 bool check_collision(Unit* unit) {
-    for(int i = 0; i < unit_list.size(); i++) {
-         float distance = (unit->position - unit_list[i].position).length();
+    for(const Unit *other : unit_list) {
+        if (other == unit) continue;
+         float distance = (unit->position - other->position).length();
          if(distance <= (unit->size/1.5) + (unit->size/1.5)) {
             return true;
          }
