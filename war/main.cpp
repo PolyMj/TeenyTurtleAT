@@ -255,6 +255,8 @@ int main(int argc, char *argv[]) {
     int cycles_until_frame = 0;
     while(!tigrClosed(window) && !tigrKeyDown(window, TK_ESCAPE)) {
 
+        tigrClear(base_image, tigrRGB(255, 255, 255)); 
+
         // Randomize order
         shuffle(star_random_order.begin(), star_random_order.end(), rng);
         shuffle(triangle_random_order.begin(), triangle_random_order.end(), rng);
@@ -361,7 +363,7 @@ void create_units(vector<T> &unit_list, const string &bin_path,
 
         // new_unit.health = 100.0f;
         // new_unit.damage = 10.0f;
-        // new_unit.speed = 1.0f;
+        new_unit.speed = 1.0f;
 
         // Initialize the teenyat instance from the .bin
         FILE* bin_file = fopen(bin_path.c_str(), "rb");
