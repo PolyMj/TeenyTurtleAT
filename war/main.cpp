@@ -99,7 +99,7 @@ vector<Star> star_list;
 vector<Square> square_list;
 vector<Circle> circle_list;
 vector<Triangle> triangle_list;
-
+vector<Unit> unit_list;
 
 inline uint16_t healthToInt(const float &h) { return round(h); }
 inline float healthToFloat(const uint16_t &h) { return float(h); }
@@ -243,18 +243,22 @@ int main(int argc, char *argv[]) {
 
     for (auto &star : star_list) {
         star_random_order.push_back(&star);
+        unit_list.push_back(star);
     }
 
     for (auto &triangle : triangle_list) {
         triangle_random_order.push_back(&triangle);
+        unit_list.push_back(triangle);
     }
 
     for (auto &circle : circle_list) {
         circle_random_order.push_back(&circle);
+        unit_list.push_back(circle);
     }
 
     for (auto &square : square_list) {
         square_random_order.push_back(&square);
+        unit_list.push_back(square);
     }
 
     random_device rd;
@@ -380,6 +384,7 @@ void create_units(vector<T> &unit_list, const string &bin_path,
 
         if(unit_type_id == UNIT_TRIANGLE) {
             new_unit.texture = (player_number == 1) ? red_triangle_image : blue_triangle_image;
+            new_unit.size = 13;
         }
 
         // new_unit.health = 100.0f;
@@ -431,6 +436,31 @@ void bus_read(teenyat *t, tny_uword addr, tny_word *data, uint16_t *delay) {
     return;
 }
 
+bool check_collision(Unit* unit) {
+    for(int i = 0; i < unit_list.size(); i++) {
+         float distance = (unit->position - unit_list[i].position).length();
+         if(distance <= (unit->size/1.5) + (unit->size/1.5)) {
+            return true;
+         }
+    }
+    return false;
+}
+
+void update_unit(teenyat* t, bool update_x, float update_value) {
+    Unit* unit = static_cast<Unit*>(t->ex_data);
+    if(update_x) {
+        unit->position.x += update_value;
+        if(check_collision(unit)) {
+            unit->position.x -= update_value;
+        }
+    }else{
+        unit->position.y += update_value;
+        if(check_collision(unit)) {
+            unit->position.y -= update_value;
+        }
+    }
+}
+
 void bus_write(teenyat *t, tny_uword addr, tny_word data, uint16_t *delay) {
     Unit *unit = nullptr;
     if (t->ex_data) {
@@ -439,30 +469,37 @@ void bus_write(teenyat *t, tny_uword addr, tny_word data, uint16_t *delay) {
 
     switch(addr) {
         case MOVE_FORWARD:
-            if (unit->player == 2)
-                unit->position.y += unit->speed;
-            else
-                unit->position.y -= unit->speed;
+            if (unit->player == 2) {
+                update_unit(t,false, unit->speed);
+            }
+            else {
+                update_unit(t,false, -unit->speed);
+            }
             break;
         case MOVE_BACKWARD:
-            if (unit->player == 2)
-                unit->position.y -= unit->speed;
-            else
-                unit->position.y += unit->speed;
+            if (unit->player == 2) {
+                update_unit(t,false, -unit->speed);
+            }
+            else {
+                update_unit(t,false, unit->speed);
+            }
             break;
         case MOVE_LEFT:
-            if (unit->player == 2)
-                unit->position.x += unit->speed;
-            else
-                unit->position.x -= unit->speed;
+            if (unit->player == 2) {
+                update_unit(t,true, unit->speed);
+            }
+            else {
+                update_unit(t,true, -unit->speed);
+            }
             break;
         case MOVE_RIGHT:
-            if (unit->player == 2)
-                unit->position.x -= unit->speed;
-            else
-                unit->position.x += unit->speed;
+            if (unit->player == 2) {
+                update_unit(t,true, -unit->speed);
+            }
+            else {
+                update_unit(t,true, unit->speed);
+            }
             break;
-
     }
     return;
 }
