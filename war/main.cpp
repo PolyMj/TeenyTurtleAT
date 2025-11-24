@@ -35,32 +35,6 @@ enum UnitType {
     UNIT_TRIANGLE
 };
 
-void bus_read(teenyat *t, tny_uword addr, tny_word *data, uint16_t *delay);
-void bus_write(teenyat *t, tny_uword addr, tny_word data, uint16_t *delay);
-string get_file_path(string folder_name, string file_name);
-void get_counts(int points[], string file_path);
-
-template<typename T>
-void create_units(vector<T> &unit_list, const string &bin_path,
-                  int player_number, UnitType unit_type_id, int count,
-                  TNY_READ_FROM_BUS_FNPTR bus_read,
-                  TNY_WRITE_TO_BUS_FNPTR bus_write);
-
-Tigr* window;
-Tigr* base_image;
-Tigr* red_star_image;
-Tigr* blue_star_image;
-Tigr* red_triangle_image;
-Tigr* blue_triangle_image;
-
-const int   windowWidth = 640;
-const int   windowHeight = 500;
-
-const int FPS = 60;
-const int cycles_per_frame = 1e3 / FPS;
-
-bool damage_possible = false;
-
 struct Unit {
     teenyat t;
 
@@ -94,6 +68,45 @@ struct Circle : Unit {
 struct Triangle : Unit {
 
 };
+
+struct RaycastHit {
+    Unit* unit;
+    float distance;
+};
+
+void bus_read(teenyat *t, tny_uword addr, tny_word *data, uint16_t *delay);
+void bus_write(teenyat *t, tny_uword addr, tny_word data, uint16_t *delay);
+string get_file_path(string folder_name, string file_name);
+void get_counts(int points[], string file_path);
+bool rayCircleIntersect(vec2f origin, vec2f direction, vec2f circleCenter, float radius, float maxDistance, float& outDistance);
+RaycastHit performRaycast(Unit* sourceUnit, vec2f direction, float maxDistance);
+uint16_t encodeDetectionResult(Unit* sourceUnit, Unit* detectedUnit);
+vec2f getDirectionVector(Unit* unit, int direction);
+void draw_detection_rays(Unit* unit, bool show_rays);
+
+
+template<typename T>
+void create_units(vector<T> &unit_list, const string &bin_path,
+                  int player_number, UnitType unit_type_id, int count,
+                  TNY_READ_FROM_BUS_FNPTR bus_read,
+                  TNY_WRITE_TO_BUS_FNPTR bus_write);
+
+Tigr* window;
+Tigr* base_image;
+Tigr* red_star_image;
+Tigr* blue_star_image;
+Tigr* red_triangle_image;
+Tigr* blue_triangle_image;
+
+const int   windowWidth = 640;
+const int   windowHeight = 500;
+
+const int FPS = 60;
+const int cycles_per_frame = 1e3 / FPS;
+
+float detect_range = 100.0f;
+
+bool damage_possible = false;
 
 vector<Star> star_list;
 vector<Square> square_list;
@@ -129,17 +142,21 @@ void draw_unit(struct Unit* unit) {
         case UNIT_TRIANGLE:
             tigrBlitAlpha(base_image, unit->texture, unit->position.x - (unit->texture->w / 2), unit->position.y - (unit->texture->h / 2),
                           0, 0, unit->texture->w, unit->texture->h, 1.0f);
+            //draw_detection_rays(unit, true);
             break;
         case UNIT_CIRCLE:
             tigrFillCircle(base_image, unit->position.x, unit->position.y, (int)unit->size/2, unit->color);
+            //draw_detection_rays(unit, true);
             break;
         case UNIT_SQUARE:
             /* draw rectangles at center of x,y */
             tigrFillRect(base_image, unit->position.x-(unit->size/2), unit->position.y-(unit->size/2), unit->size, unit->size, unit->color);
+            //draw_detection_rays(unit, true);
             break;
         default:
             break;
     }
+
     tigrCircle(base_image, unit->position.x, unit->position.y, (int)unit->size/1.5, unit->color);
     if(damage_possible) {
         tigrCircle(base_image, unit->position.x, unit->position.y, (int)unit->size, unit->color);
@@ -387,10 +404,6 @@ void create_units(vector<T> &unit_list, const string &bin_path,
             new_unit.size = 13;
         }
 
-        // new_unit.health = 100.0f;
-        // new_unit.damage = 10.0f;
-        new_unit.speed = 1.0f;
-
         // Initialize the teenyat instance from the .bin
         FILE* bin_file = fopen(bin_path.c_str(), "rb");
         if (bin_file != NULL) {
@@ -430,8 +443,32 @@ void bus_read(teenyat *t, tny_uword addr, tny_word *data, uint16_t *delay) {
             break;
         case DEAD_UNITS:
             data->u = 0;
-            countUnits(NULL, &(data->u), NULL);
+            countUnits(NULL, NULL, &(data->u));
             break;
+        case DETECT_FORWARD: {
+            vec2f unit_direction = getDirectionVector(unit, 0);
+            RaycastHit hit = performRaycast(unit, unit_direction, detect_range); // 200 pixel range
+            data->u = encodeDetectionResult(unit, hit.unit);
+            break;
+        }
+        case DETECT_BACKWARD: {
+            vec2f unit_direction = getDirectionVector(unit, 1);
+            RaycastHit hit = performRaycast(unit, unit_direction, detect_range);
+            data->u = encodeDetectionResult(unit, hit.unit);
+            break;
+        }
+        case DETECT_LEFT: {
+            vec2f unit_direction = getDirectionVector(unit, 2);
+            RaycastHit hit = performRaycast(unit, unit_direction, detect_range);
+            data->u = encodeDetectionResult(unit, hit.unit);
+            break;
+        }
+        case DETECT_RIGHT: {
+            vec2f unit_direction = getDirectionVector(unit, 3);
+            RaycastHit hit = performRaycast(unit, unit_direction, detect_range);
+            data->u = encodeDetectionResult(unit, hit.unit);
+            break;
+        }
     }
     return;
 }
@@ -439,8 +476,10 @@ void bus_read(teenyat *t, tny_uword addr, tny_word *data, uint16_t *delay) {
 bool check_collision(Unit* unit) {
     for(const Unit *other : unit_list) {
         if (other == unit) continue;
-         float distance = (unit->position - other->position).length();
-         if(distance <= (unit->size/1.5) + (unit->size/1.5)) {
+        if (other->health <= 0) continue;
+        
+        float distance = (unit->position - other->position).length();
+        if(distance <= (unit->size/1.5) + (unit->size/1.5)) {
             return true;
          }
     }
@@ -503,4 +542,133 @@ void bus_write(teenyat *t, tny_uword addr, tny_word data, uint16_t *delay) {
             break;
     }
     return;
+}
+
+// Ray-Circle intersection function
+bool rayCircleIntersect(vec2f origin, vec2f direction, vec2f circleCenter, float radius, float maxDistance, float& outDistance) {
+    vec2f toCircle = circleCenter - origin;
+    
+    // Project toCircle onto ray direction
+    float projection = toCircle * direction; // dot product
+    
+    // If projection is negative, circle is behind ray
+    if (projection < 0) return false;
+    
+    // Find closest point on ray to circle center
+    vec2f closestPoint = origin + (projection * direction);
+    
+    // Distance from circle center to closest point
+    vec2f diff = circleCenter - closestPoint;
+    float distSq = diff * diff; // dot product with itself
+    
+    float radiusSq = radius * radius;
+    
+    if (distSq <= radiusSq && projection <= maxDistance) {
+        // Calculate actual intersection distance
+        float offset = sqrt(radiusSq - distSq);
+        outDistance = projection - offset;
+        return outDistance >= 0 && outDistance <= maxDistance;
+    }
+    return false;
+}
+
+// Perform raycast and return the closest hit
+RaycastHit performRaycast(Unit* sourceUnit, vec2f direction, float maxDistance) {
+    RaycastHit closestHit = {nullptr, maxDistance + 1.0f};
+    
+    vec2f rayOrigin = sourceUnit->position;
+    
+    for (Unit* other : unit_list) {
+        // Skip self
+        if (other == sourceUnit) continue;
+        
+        // Skip dead units
+        if (other->health <= 0) continue;
+        
+        float hitDistance;
+        float detectionRadius = other->size / 1.5f; // Match the collision radius
+        
+        if (rayCircleIntersect(rayOrigin, direction, other->position, detectionRadius, maxDistance, hitDistance)) {
+            if (hitDistance < closestHit.distance) {
+                closestHit.unit = other;
+                closestHit.distance = hitDistance;
+            }
+        }
+    }
+    
+    return closestHit;
+}
+
+// Convert Unit type and team info to the encoded format
+uint16_t encodeDetectionResult(Unit* sourceUnit, Unit* detectedUnit) {
+    if (detectedUnit == nullptr) {
+        return 0; // Nothing detected
+    }
+    
+    uint16_t result = 0;
+    
+    // Encode unit type (bits 0-2)
+    switch(detectedUnit->type) {
+        case UNIT_SQUARE:   result = 1; break;
+        case UNIT_CIRCLE:   result = 2; break;
+        case UNIT_TRIANGLE: result = 3; break;
+        case UNIT_STAR:     result = 4; break;
+    }
+    
+    // Set most significant bit if it's a foe (different player)
+    if (detectedUnit->player != sourceUnit->player) {
+        result |= 0x8000; // Set bit 15 (most significant bit)
+    }
+    
+    return result;
+}
+
+// Get direction vector based on unit's player and direction
+vec2f getDirectionVector(Unit* unit, int direction) {
+    // Player 1 faces "up" (negative Y)
+    // Player 2 faces "down" (positive Y)
+    // These directions are relative to the unit's facing
+    
+    vec2f dir;
+    
+    if (unit->player == 1) {
+        switch(direction) {
+            case 0: dir = vec2f(0, -1);  break; // Forward = up
+            case 1: dir = vec2f(0, 1);   break; // Backward = down
+            case 2: dir = vec2f(-1, 0);  break; // Left
+            case 3: dir = vec2f(1, 0);   break; // Right
+        }
+    } else { // player == 2
+        switch(direction) {
+            case 0: dir = vec2f(0, 1);   break; // Forward = down
+            case 1: dir = vec2f(0, -1);  break; // Backward = up
+            case 2: dir = vec2f(1, 0);   break; // Left (flipped for player 2)
+            case 3: dir = vec2f(-1, 0);  break; // Right (flipped for player 2)
+        }
+    }
+    
+    return dir;
+}
+
+// Testing function to draw detection rays
+void draw_detection_rays(Unit* unit, bool show_rays) {
+    if (!show_rays) return;
+    
+    for (int i = 0; i < 4; i++) {
+        vec2f dir = getDirectionVector(unit, i);
+        RaycastHit hit = performRaycast(unit, dir, detect_range);
+        
+        vec2f endPos;
+        if (hit.unit) {
+            endPos = unit->position + (hit.distance * dir);
+            // Draw red line if hit
+            tigrLine(base_image, unit->position.x, unit->position.y, 
+                    endPos.x, endPos.y, tigrRGB(255, 0, 0));
+        } else {
+            endPos = unit->position + (detect_range * dir);
+            // Draw gray line if no hit
+            tigrLine(base_image, unit->position.x, unit->position.y, 
+                    endPos.x, endPos.y, tigrRGB(128, 128, 128));
+        }
+    }
 }
