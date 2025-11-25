@@ -39,9 +39,8 @@ struct vec2
         return { (x - o.x), (y - o.y) };
     }
 
-    // Dot product
     template<typename U>
-    auto operator*(const vec2<U> &o) const -> decltype(T{} * U{})
+    auto dot(const vec2<U> &o) const -> decltype(T{} * U{})
     {
         return (x*o.x) + (y*o.y);
     }
@@ -73,7 +72,6 @@ struct vec2
         y += o.y;
         return *this;
     }
-
 
     template<typename U>
     vec2<T>& operator-=(const vec2<U> &o)
@@ -109,6 +107,12 @@ template<typename U, typename T>
 auto operator*(U s, const vec2<T>& v) -> vec2<decltype(T{} * U{})>
 {
     return { (v.x*s), (v.y*s) };
+}
+
+template<typename U, typename T>
+inline auto dot(const vec2<U> &a, const vec2<T> b) -> decltype(T{} * U{})
+{
+    return a.dot(b);
 }
 
 template<typename T>
