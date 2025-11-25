@@ -549,7 +549,7 @@ bool rayCircleIntersect(vec2f origin, vec2f direction, vec2f circleCenter, float
     vec2f toCircle = circleCenter - origin;
     
     // Project toCircle onto ray direction
-    float projection = toCircle * direction; // dot product
+    float projection = dot(toCircle,direction);
     
     // If projection is negative, circle is behind ray
     if (projection < 0) return false;
@@ -559,7 +559,7 @@ bool rayCircleIntersect(vec2f origin, vec2f direction, vec2f circleCenter, float
     
     // Distance from circle center to closest point
     vec2f diff = circleCenter - closestPoint;
-    float distSq = diff * diff; // dot product with itself
+    float distSq = dot(diff,diff);
     
     float radiusSq = radius * radius;
     
