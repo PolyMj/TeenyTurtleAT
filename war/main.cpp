@@ -27,7 +27,6 @@ using namespace std;
 #define STAR_INTERRUPT      TNY_XINT1
 
 #define UPDATES_UNTIL_DAMAGE 20
-#define GLOBAL_MOVE_DELAY    320
 
 enum UnitType {
     UNIT_STAR,
@@ -39,37 +38,89 @@ enum UnitType {
 struct Unit {
     teenyat t;
 
-    UnitType type;
-
-    int player = 0;
-    float health = 100;
-    float damage = 0;
-    float speed = 1;
+    const UnitType type;
+    const int player;
+    const float damage;
+    const int slowness;
+    const TPixel color;
+    Tigr* const  texture;
+    const int size;
 
     vec2f position;
-
-    TPixel color;
-    Tigr*  texture;
-
-    int size;
-
+    float health;
     int move_delay;
+
+    // Initializes color, texture, size, and health. Position must be initialized manually.
+    Unit(UnitType type, int player, float damage, int slowness, 
+         Tigr* const texture, TPixel color, int size, 
+         float health=100, vec2f position={0,0}) :
+        type(type),
+        player(player),
+        damage(damage),
+        slowness(slowness),
+        texture(texture),
+        color(color),
+        size(size),
+        health(health),
+        position(),
+        move_delay(0)
+        { }
 };
 
+Tigr* red_star_image;
+Tigr* blue_star_image;
 struct Star : Unit {
+    static constexpr float    MAX_HEALTH = 300;
+    static constexpr float    DAMAGE = 0;
+    static constexpr int      SLOWNESS = 300;
+    static constexpr int      SIZE = 30;
+    #define TEXTURE     ((player == 1) ? red_star_image : blue_star_image)
+    #define COLOR       ((player == 1) ? TPixel{237,28,36,255} : TPixel{0,162,232,255})
 
+    Star(int player) : Unit(UnitType::UNIT_STAR, player, DAMAGE, SLOWNESS, TEXTURE, COLOR, SIZE, MAX_HEALTH) {}
+
+    #undef TEXTURE
+    #undef COLOR
 };
 
 struct Square : Unit {
+    static constexpr float    MAX_HEALTH = 150;
+    static constexpr float    DAMAGE = 0;
+    static constexpr int      SLOWNESS = 150;
+    static constexpr int      SIZE = 15;
+    #define COLOR       ((player == 1) ? TPixel{237,28,36,255} : TPixel{0,162,232,255})
 
+    Square(int player) : Unit(UnitType::UNIT_SQUARE, player, DAMAGE, SLOWNESS, nullptr, COLOR, SIZE, MAX_HEALTH) {}
+
+    #undef COLOR
 };
 
 struct Circle : Unit {
+    static constexpr float    MAX_HEALTH = 120;
+    static constexpr float    DAMAGE = 15;
+    static constexpr int      SLOWNESS = 100;
+    static constexpr int      SIZE = 15;
+    #define COLOR       ((player == 1) ? TPixel{237,28,36,255} : TPixel{0,162,232,255})
 
+    Circle(int player) : Unit(UnitType::UNIT_CIRCLE, player, DAMAGE, SLOWNESS, nullptr, COLOR, SIZE, MAX_HEALTH) {}
+
+    #undef COLOR
 };
 
+Tigr* red_triangle_image;
+Tigr* blue_triangle_image;
 struct Triangle : Unit {
+    static constexpr float    MAX_HEALTH = 85;
+    static constexpr float    DAMAGE = 25;
+    static constexpr int      SLOWNESS = 50;
+    static constexpr int      SIZE = 13;
+    #define TEXTURE     ((player == 1) ? red_triangle_image : blue_triangle_image)
+    #define COLOR       ((player == 1) ? TPixel{237,28,36,255} : TPixel{0,162,232,255})
 
+    Triangle(int player) : Unit(UnitType::UNIT_TRIANGLE, player, DAMAGE, SLOWNESS, TEXTURE, COLOR, SIZE, MAX_HEALTH) { }
+
+    #undef TEXTURE
+    #undef COLOR
 };
 
 struct RaycastHit {
@@ -96,10 +147,6 @@ void create_units(vector<T> &unit_list, const string &bin_path,
 
 Tigr* window;
 Tigr* base_image;
-Tigr* red_star_image;
-Tigr* blue_star_image;
-Tigr* red_triangle_image;
-Tigr* blue_triangle_image;
 
 const int   windowWidth = 640;
 const int   windowHeight = 500;
@@ -388,14 +435,7 @@ void create_units(vector<T> &unit_list, const string &bin_path,
     int start_heights[4] = {45, 100, 120, 140};
     const int start_width_offset = (windowWidth / 2) - 50;
     for (int i = 0; i < count; i++) {
-        T new_unit;
-
-        // Set basic unit fields
-        new_unit.type = unit_type_id;
-        new_unit.player = player_number;
-        new_unit.color = (player_number == 1) ? TPixel{237,28,36,255} : TPixel{0,162,232,255};
-        new_unit.size = 15;
-        new_unit.move_delay = 0;
+        T new_unit(player_number);
 
         int start_y = start_heights[unit_type_id];
         if(player_number == 1) start_y = windowHeight - start_y;
@@ -403,14 +443,7 @@ void create_units(vector<T> &unit_list, const string &bin_path,
         new_unit.position = {start_width_offset + (25 *  i), start_y};
 
         if(unit_type_id == UNIT_STAR) {
-            new_unit.texture    = (player_number == 1) ? red_star_image : blue_star_image;
             new_unit.position.x = windowWidth / 2;
-            new_unit.size = 30;
-        }
-
-        if(unit_type_id == UNIT_TRIANGLE) {
-            new_unit.texture = (player_number == 1) ? red_triangle_image : blue_triangle_image;
-            new_unit.size = 13;
         }
 
         // Initialize the teenyat instance from the .bin
@@ -495,22 +528,18 @@ bool check_collision(Unit* unit) {
     return false;
 }
 
-void update_unit(teenyat* t, bool update_x, float update_value) {
-    Unit* unit = static_cast<Unit*>(t->ex_data);
+bool update_unit(Unit* unit, vec2f move_dir) {
+    if (unit->player == 2) move_dir *= -1; // Flip direction for player 2
+
     if(unit->move_delay == 0) {
-        if(update_x) {
-            unit->position.x += update_value;
-            if(check_collision(unit)) {
-                unit->position.x -= update_value;
-            }
-        }else{
-            unit->position.y += update_value;
-            if(check_collision(unit)) {
-                unit->position.y -= update_value;
-            }
+        unit->position += move_dir;
+        if(check_collision(unit)) {
+            unit->position -= move_dir;
         }
-        unit->move_delay += GLOBAL_MOVE_DELAY;
+        unit->move_delay = unit->slowness;
+        return true;
     }
+    return false;
 }
 
 void bus_write(teenyat *t, tny_uword addr, tny_word data, uint16_t *delay) {
@@ -521,36 +550,20 @@ void bus_write(teenyat *t, tny_uword addr, tny_word data, uint16_t *delay) {
 
     switch(addr) {
         case MOVE_FORWARD:
-            if (unit->player == 2) {
-                update_unit(t,false, unit->speed);
-            }
-            else {
-                update_unit(t,false, -unit->speed);
-            }
+            if (update_unit(unit, {0,-1}))
+                *delay += unit->slowness;
             break;
         case MOVE_BACKWARD:
-            if (unit->player == 2) {
-                update_unit(t,false, -unit->speed);
-            }
-            else {
-                update_unit(t,false, unit->speed);
-            }
+            if (update_unit(unit, {0,1}))
+                *delay += unit->slowness;
             break;
         case MOVE_LEFT:
-            if (unit->player == 2) {
-                update_unit(t,true, unit->speed);
-            }
-            else {
-                update_unit(t,true, -unit->speed);
-            }
+            if (update_unit(unit, {-1,0}))
+                *delay += unit->slowness;
             break;
         case MOVE_RIGHT:
-            if (unit->player == 2) {
-                update_unit(t,true, -unit->speed);
-            }
-            else {
-                update_unit(t,true, unit->speed);
-            }
+            if (update_unit(unit, {1,0}))
+                *delay += unit->slowness;
             break;
     }
     return;
