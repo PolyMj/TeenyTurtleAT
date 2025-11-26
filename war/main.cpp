@@ -27,6 +27,7 @@ using namespace std;
 #define STAR_INTERRUPT      TNY_XINT1
 
 #define UPDATES_UNTIL_DAMAGE 20
+#define GLOBAL_MOVE_DELAY    320
 
 enum UnitType {
     UNIT_STAR,
@@ -51,6 +52,8 @@ struct Unit {
     Tigr*  texture;
 
     int size;
+
+    int move_delay;
 };
 
 struct Star : Unit {
@@ -158,7 +161,8 @@ void draw_unit(struct Unit* unit) {
     }
 
     tigrCircle(base_image, unit->position.x, unit->position.y, (int)unit->size/1.5, unit->color);
-    if(damage_possible) {
+    /* If move_delay is zero that means the unit is currently not moving */
+    if(damage_possible && unit->move_delay == 0) {
         tigrCircle(base_image, unit->position.x, unit->position.y, (int)unit->size, unit->color);
     }
     return;
@@ -296,18 +300,22 @@ int main(int argc, char *argv[]) {
         // Clock all teenyat instances
         for (auto &star : star_random_order) {
             tny_clock(&star->t);
+            if(star->move_delay > 0) star->move_delay--;
         }
 
         for (auto &triangle : triangle_random_order) {
             tny_clock(&triangle->t);
+            if(triangle->move_delay > 0) triangle->move_delay--;
         }
 
         for (auto &circle : circle_random_order) {
             tny_clock(&circle->t);
+            if(circle->move_delay > 0) circle->move_delay--;
         }
 
         for (auto &square : square_random_order) {
             tny_clock(&square->t);
+            if(square->move_delay > 0) square->move_delay--;
         }
 
         --cycles_until_frame;
@@ -387,6 +395,7 @@ void create_units(vector<T> &unit_list, const string &bin_path,
         new_unit.player = player_number;
         new_unit.color = (player_number == 1) ? TPixel{237,28,36,255} : TPixel{0,162,232,255};
         new_unit.size = 15;
+        new_unit.move_delay = 0;
 
         int start_y = start_heights[unit_type_id];
         if(player_number == 1) start_y = windowHeight - start_y;
@@ -488,16 +497,19 @@ bool check_collision(Unit* unit) {
 
 void update_unit(teenyat* t, bool update_x, float update_value) {
     Unit* unit = static_cast<Unit*>(t->ex_data);
-    if(update_x) {
-        unit->position.x += update_value;
-        if(check_collision(unit)) {
-            unit->position.x -= update_value;
+    if(unit->move_delay == 0) {
+        if(update_x) {
+            unit->position.x += update_value;
+            if(check_collision(unit)) {
+                unit->position.x -= update_value;
+            }
+        }else{
+            unit->position.y += update_value;
+            if(check_collision(unit)) {
+                unit->position.y -= update_value;
+            }
         }
-    }else{
-        unit->position.y += update_value;
-        if(check_collision(unit)) {
-            unit->position.y -= update_value;
-        }
+        unit->move_delay += GLOBAL_MOVE_DELAY;
     }
 }
 
