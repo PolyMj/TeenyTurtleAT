@@ -23,9 +23,10 @@ using namespace std;
 #define ALVIE_UNITS     0xF001
 #define DEAD_UNITS      0xF002
 
-#define DAMANGE_INTERRUPT   TNY_XINT0
-#define STAR_TOOK_DAMANGE_INTERRUPT      TNY_XINT1
-#define LOW_HEALTH_INTERRUPT      TNY_XINT2
+#define DEALT_DAMAGE_INTERRUPT          TNY_XINT0
+#define TOOK_DAMAGE_INTERRUPT           TNY_XINT1
+#define STAR_TOOK_DAMANGE_INTERRUPT     TNY_XINT2
+#define LOW_HEALTH_INTERRUPT            TNY_XINT3
 
 #define LOW_HEALTH_THRESHOLD 20.0f
 
@@ -750,8 +751,11 @@ void apply_damage() {
                 // Visual damage indication (Took damage)
                 tigrCircle(base_image, target->position.x, target->position.y, (int)target->size, target->color);
 
-                // Trigger damage interrupt on the target
-                tny_external_interrupt(&target->t, DAMANGE_INTERRUPT);
+                // Trigger dealt damage interrupt on the attacker
+                tny_external_interrupt(&attacker->t, DEALT_DAMAGE_INTERRUPT);
+
+                // Trigger damage taken interrupt on the target
+                tny_external_interrupt(&target->t, TOOK_DAMAGE_INTERRUPT);
                 
             }
         }
