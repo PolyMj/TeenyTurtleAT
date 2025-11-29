@@ -12,18 +12,30 @@
 
 set rB, MOVE_FORWARD
 
-!main
-    set rA, 30
-    !loop
-        dly 0xF
-        str [rB], rZ
-        lup rA, !loop
+;!main
+;    set rA, 30
+;    !loop
+;        dly 0xF
+;        str [rB], rZ
+;        lup rA, !loop
 
-    inc rB
-    neg rB
-    dec rB
-    or  rB, 4
-    inc rB
-    neg rB
+;    inc rB
+;    neg rB
+;    dec rB
+;    or  rB, 4
+;    inc rB
+;    neg rB
 
-    jmp !main
+;    jmp !main
+
+!loop
+    dly 0xF
+    lod rB, [ DETECT_FORWARD ]
+    shf rB, 15
+    cmp rB, rZ
+    jne !stop
+    str [ MOVE_FORWARD ], rZ
+    jmp !loop
+
+!stop
+    jmp !stop

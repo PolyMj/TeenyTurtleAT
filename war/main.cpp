@@ -212,10 +212,6 @@ void draw_unit(struct Unit* unit) {
     }
 
     tigrCircle(base_image, unit->position.x, unit->position.y, (int)unit->size/1.5, unit->color);
-    /* If move_delay is zero that means the unit is currently not moving */
-    if(damage_possible && unit->move_delay == 0) {
-        tigrCircle(base_image, unit->position.x, unit->position.y, (int)unit->size, unit->color);
-    }
     return;
 }
 
@@ -380,10 +376,10 @@ int main(int argc, char *argv[]) {
                 apply_damage();
             }
 
-            for (auto &star : star_list) draw_unit(&star);
-            for (auto &square : square_list) draw_unit(&square);
-            for (auto &circle : circle_list) draw_unit(&circle);
-            for (auto &triangle : triangle_list) draw_unit(&triangle);
+            for (auto &star : star_list) if(star.health > 0) draw_unit(&star);
+            for (auto &square : square_list) if(square.health > 0) draw_unit(&square);
+            for (auto &circle : circle_list) if(circle.health > 0) draw_unit(&circle);
+            for (auto &triangle : triangle_list) if(triangle.health > 0) draw_unit(&triangle);
 
             /* Move base_image ontop of our window */
             tigrBlit(window, base_image, 0, 0, 0, 0, base_image->w, base_image->h);
@@ -728,10 +724,10 @@ void apply_damage() {
             
             // Calculate distance between units
             float distance = (attacker->position - target->position).length();
-            float damageRange = (attacker->size / 1.5f) + (target->size / 1.5f);
+            float damageRange = ceil(attacker->size / 1.5f) + (target->size / 1.5f);
             
             // If within damage range, apply damage
-            if (distance <= damageRange) {
+            if (distance <= ceil(damageRange)) {
                 target->health -= attacker->damage;
 
                 if (target->type == UNIT_STAR) {
@@ -746,18 +742,14 @@ void apply_damage() {
                 if (target->health < 0) {
                     target->health = 0;
 
-
-
-                    // TODO: DEAL WITH DEATH
-
-
-
-
                 } else if (target->health <= LOW_HEALTH_THRESHOLD) {
                     // Trigger low health interrupt if health drops below threshold
                     tny_external_interrupt(&target->t, LOW_HEALTH_INTERRUPT);
                 }
-                
+
+                // Visual damage indication (Took damage)
+                tigrCircle(base_image, target->position.x, target->position.y, (int)target->size, target->color);
+
                 // Trigger damage interrupt on the target
                 tny_external_interrupt(&target->t, DAMANGE_INTERRUPT);
                 
