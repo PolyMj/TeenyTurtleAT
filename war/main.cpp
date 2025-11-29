@@ -24,7 +24,10 @@ using namespace std;
 #define DEAD_UNITS      0xF002
 
 #define DAMANGE_INTERRUPT   TNY_XINT0
-#define STAR_INTERRUPT      TNY_XINT1
+#define STAR_TOOK_DAMANGE_INTERRUPT      TNY_XINT1
+#define LOW_HEALTH_INTERRUPT      TNY_XINT2
+
+#define LOW_HEALTH_THRESHOLD 20.0f
 
 #define UPDATES_UNTIL_DAMAGE 20
 
@@ -137,6 +140,7 @@ RaycastHit performRaycast(Unit* sourceUnit, vec2f direction, float maxDistance);
 uint16_t encodeDetectionResult(Unit* sourceUnit, Unit* detectedUnit);
 vec2f getDirectionVector(Unit* unit, int direction);
 void draw_detection_rays(Unit* unit, bool show_rays);
+void apply_damage();
 
 
 template<typename T>
@@ -373,6 +377,7 @@ int main(int argc, char *argv[]) {
             if(frames_until_damage_tick < 0) {
                 frames_until_damage_tick = UPDATES_UNTIL_DAMAGE;
                 damage_possible = true;
+                apply_damage();
             }
 
             for (auto &star : star_list) draw_unit(&star);
@@ -694,6 +699,69 @@ void draw_detection_rays(Unit* unit, bool show_rays) {
             // Draw gray line if no hit
             tigrLine(base_image, unit->position.x, unit->position.y, 
                     endPos.x, endPos.y, tigrRGB(128, 128, 128));
+        }
+    }
+}
+
+void apply_damage() {
+    // Process damage for all units
+    for (Unit* attacker : unit_list) {
+        // Skip dead units
+        if (attacker->health <= 0) continue;
+        
+        // Skip units that can't deal damage
+        if (attacker->damage <= 0) continue;
+        
+        // Skip units that are currently moving (have movement delay)
+        if (attacker->move_delay != 0) continue;
+        
+        // Check for enemies in range to damage
+        for (Unit* target : unit_list) {
+            // Skip self
+            if (target == attacker) continue;
+            
+            // Skip dead units
+            if (target->health <= 0) continue;
+            
+            // Skip allies (only damage enemies)
+            if (target->player == attacker->player) continue;
+            
+            // Calculate distance between units
+            float distance = (attacker->position - target->position).length();
+            float damageRange = (attacker->size / 1.5f) + (target->size / 1.5f);
+            
+            // If within damage range, apply damage
+            if (distance <= damageRange) {
+                target->health -= attacker->damage;
+
+                if (target->type == UNIT_STAR) {
+                    for (Unit* unit : unit_list) {
+                        if (unit->player == target->player && unit->type != UNIT_STAR) {
+                            tny_external_interrupt(&unit->t, STAR_TOOK_DAMANGE_INTERRUPT);
+                        }
+                    }
+                }
+                
+                // Clamp health to 0 minimum
+                if (target->health < 0) {
+                    target->health = 0;
+
+
+
+                    // TODO: DEAL WITH DEATH
+
+
+
+
+                } else if (target->health <= LOW_HEALTH_THRESHOLD) {
+                    // Trigger low health interrupt if health drops below threshold
+                    tny_external_interrupt(&target->t, LOW_HEALTH_INTERRUPT);
+                }
+                
+                // Trigger damage interrupt on the target
+                tny_external_interrupt(&target->t, DAMANGE_INTERRUPT);
+                
+            }
         }
     }
 }
