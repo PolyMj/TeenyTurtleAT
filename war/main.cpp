@@ -538,6 +538,11 @@ bool update_unit(Unit* unit, vec2f move_dir) {
         if(check_collision(unit)) {
             unit->position -= move_dir;
         }
+
+        // Clamp position to window bounds from the circle around the units
+        unit->position.x = clamp(unit->position.x, unit->size/1.5f, windowWidth - unit->size/1.5f);
+        unit->position.y = clamp(unit->position.y, unit->size/1.5f, windowHeight - unit->size/1.5f);
+
         unit->move_delay = unit->slowness;
         return true;
     }
