@@ -89,7 +89,7 @@ struct Star : Unit {
 
 struct Square : Unit {
     static constexpr float    MAX_HEALTH = 150;
-    static constexpr float    DAMAGE = 0;
+    static constexpr float    DAMAGE = 5;
     static constexpr int      SLOWNESS = 150;
     static constexpr int      SIZE = 15;
     #define COLOR       ((player == 1) ? TPixel{237,28,36,255} : TPixel{0,162,232,255})
@@ -159,7 +159,7 @@ const int   windowHeight = 500;
 const int FPS = 60;
 const int cycles_per_frame = 1e3 / FPS;
 
-float detect_range = 100.0f;
+float detect_range = 50.0f;
 
 bool damage_possible = false;
 
