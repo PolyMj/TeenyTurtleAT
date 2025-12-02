@@ -738,8 +738,13 @@ void apply_damage() {
             
             // Calculate distance between units
             float distance = (attacker->position - target->position).length();
+
             float damageRange = ceil(attacker->size / 1.5f) + (target->size / 1.5f);
-            
+
+            if (attacker->type == UNIT_CIRCLE || attacker->type == UNIT_SQUARE) {
+                damageRange += 1.0f; // Circle and Sqaure need slightly longer range
+            }
+
             // If within damage range, apply damage
             if (distance <= ceil(damageRange)) {
                 target->health -= attacker->damage;
