@@ -435,14 +435,22 @@ void create_units(vector<T> &unit_list, const string &bin_path,
                   TNY_WRITE_TO_BUS_FNPTR bus_write) {
 
     int start_heights[4] = {45, 100, 120, 140};
-    const int start_width_offset = (windowWidth / 2) - 50;
+    
+    // Calculate total width needed for all units
+    const int spacing = 25;
+    const int total_width = (count > 0) ? (count - 1) * spacing : 0;
+    
+    // Calculate starting x position to center the group
+    const int start_x = (windowWidth - total_width) / 2;
+    
     for (int i = 0; i < count; i++) {
         T new_unit(player_number);
 
         int start_y = start_heights[unit_type_id];
         if(player_number == 1) start_y = windowHeight - start_y;
 
-        new_unit.position = {start_width_offset + (25 *  i), start_y};
+        // Center the units horizontally
+        new_unit.position = {start_x + (spacing * i), start_y};
 
         if(unit_type_id == UNIT_STAR) {
             new_unit.position.x = windowWidth / 2;
