@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <format>
 #include <string>
 #include <vector>
 #include <random>
@@ -171,6 +172,8 @@ vector<Unit*> unit_list;
 
 inline uint16_t healthToInt(const float &h) { return round(h); }
 inline float healthToFloat(const uint16_t &h) { return float(h); }
+
+int GAME_OVER = 0;
 
 template<typename T>
 void countUnits(const vector<T> &units, uint16_t *total, uint16_t *alive, uint16_t *dead) {
@@ -359,32 +362,33 @@ int main(int argc, char *argv[]) {
     while(!tigrClosed(window) && !tigrKeyDown(window, TK_ESCAPE)) {
 
         tigrClear(base_image, tigrRGB(255, 255, 255));
+        if(!GAME_OVER) {
+            // Randomize order
+            shuffle(star_random_order.begin(), star_random_order.end(), rng);
+            shuffle(triangle_random_order.begin(), triangle_random_order.end(), rng);
+            shuffle(circle_random_order.begin(), circle_random_order.end(), rng);
+            shuffle(square_random_order.begin(), square_random_order.end(), rng);
 
-        // Randomize order
-        shuffle(star_random_order.begin(), star_random_order.end(), rng);
-        shuffle(triangle_random_order.begin(), triangle_random_order.end(), rng);
-        shuffle(circle_random_order.begin(), circle_random_order.end(), rng);
-        shuffle(square_random_order.begin(), square_random_order.end(), rng);
+            // Clock all teenyat instances
+            for (auto &star : star_random_order) {
+                tny_clock(&star->t);
+                if(star->move_delay > 0) star->move_delay--;
+            }
 
-        // Clock all teenyat instances
-        for (auto &star : star_random_order) {
-            tny_clock(&star->t);
-            if(star->move_delay > 0) star->move_delay--;
-        }
+            for (auto &triangle : triangle_random_order) {
+                tny_clock(&triangle->t);
+                if(triangle->move_delay > 0) triangle->move_delay--;
+            }
 
-        for (auto &triangle : triangle_random_order) {
-            tny_clock(&triangle->t);
-            if(triangle->move_delay > 0) triangle->move_delay--;
-        }
+            for (auto &circle : circle_random_order) {
+                tny_clock(&circle->t);
+                if(circle->move_delay > 0) circle->move_delay--;
+            }
 
-        for (auto &circle : circle_random_order) {
-            tny_clock(&circle->t);
-            if(circle->move_delay > 0) circle->move_delay--;
-        }
-
-        for (auto &square : square_random_order) {
-            tny_clock(&square->t);
-            if(square->move_delay > 0) square->move_delay--;
+            for (auto &square : square_random_order) {
+                tny_clock(&square->t);
+                if(square->move_delay > 0) square->move_delay--;
+            }
         }
 
         --cycles_until_frame;
@@ -406,11 +410,19 @@ int main(int argc, char *argv[]) {
             /* Move base_image ontop of our window */
             tigrBlit(window, base_image, 0, 0, 0, 0, base_image->w, base_image->h);
 
+            if(GAME_OVER) {
+                std::string msg = std::format("Game OVER Player {} WINS!!", GAME_OVER);
+                TPixel col = GAME_OVER == 1 ? TPixel{237,28,36,255} : TPixel{0,162,232,255};
+                tigrPrint(window, tfont, 20,  20, col, msg.c_str());
+            }
+
             tigrUpdate(window);
             cycles_until_frame = cycles_per_frame;
             damage_possible = false;
 
         }
+
+
     }
 
     tigrFree(base_image);
@@ -781,6 +793,9 @@ void apply_damage() {
                 // Clamp health to 0 minimum
                 if (target->health < 0) {
                     target->health = 0;
+                    if(target->type == UNIT_STAR) {
+                        GAME_OVER = attacker->player;
+                    }
 
                 } else if (target->health <= LOW_HEALTH_THRESHOLD) {
                     // Trigger low health interrupt if health drops below threshold
