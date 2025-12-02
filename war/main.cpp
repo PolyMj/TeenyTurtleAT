@@ -802,6 +802,10 @@ void apply_damage() {
                     tny_external_interrupt(&target->t, LOW_HEALTH_INTERRUPT);
                 }
 
+                if(target->health == 0 && target->type == UNIT_STAR) {
+                        GAME_OVER = attacker->player;
+                }
+
                 // Visual damage indication (Took damage)
                 tigrCircle(base_image, target->position.x, target->position.y, (int)target->size, target->color);
 
