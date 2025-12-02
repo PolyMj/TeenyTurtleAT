@@ -793,9 +793,6 @@ void apply_damage() {
                 // Clamp health to 0 minimum
                 if (target->health < 0) {
                     target->health = 0;
-                    if(target->type == UNIT_STAR) {
-                        GAME_OVER = attacker->player;
-                    }
 
                 } else if (target->health <= LOW_HEALTH_THRESHOLD) {
                     // Trigger low health interrupt if health drops below threshold
