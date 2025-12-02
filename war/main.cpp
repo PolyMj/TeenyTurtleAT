@@ -212,6 +212,27 @@ void draw_unit(struct Unit* unit) {
             break;
     }
 
+    // Health Bar
+    if (unit->health > 0) {
+        int bar_width = unit->size * 2.5;
+        int bar_height = 6;
+        int offset_y   = 8; 
+        int bar_x = unit->position.x - (bar_width / 2);
+        int bar_y = unit->position.y - unit->size - bar_height - offset_y;
+        float max_health = (unit->type == UNIT_STAR) ? Star::MAX_HEALTH : 
+                            (unit->type == UNIT_SQUARE) ? Square::MAX_HEALTH :
+                            (unit->type == UNIT_CIRCLE) ? Circle::MAX_HEALTH :
+                            Triangle::MAX_HEALTH;
+
+        // Background (Max Health)
+        tigrFillRect(base_image, bar_x, bar_y, bar_width, bar_height, tigrRGB(0, 0, 0)); 
+
+        // Current Health (Green/Red)
+        int current_width = (int)(bar_width * (unit->health / max_health));
+        TPixel health_color = (unit->health / max_health > 0.3) ? tigrRGB(0, 255, 0) : tigrRGB(255, 0, 0);
+        tigrFillRect(base_image, bar_x, bar_y, current_width, bar_height, health_color);
+    }
+
     tigrCircle(base_image, unit->position.x, unit->position.y, (int)unit->size/1.5, unit->color);
     return;
 }
