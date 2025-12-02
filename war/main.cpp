@@ -214,7 +214,7 @@ void draw_unit(struct Unit* unit) {
 
     // Health Bar
     if (unit->health > 0) {
-        int bar_width = unit->size * 2.5;
+        int bar_width = unit->size * 1.5;
         int bar_height = 6;
         int offset_y   = 8; 
         int bar_x = unit->position.x - (bar_width / 2);
