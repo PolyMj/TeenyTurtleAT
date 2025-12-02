@@ -55,8 +55,8 @@ struct Unit {
     int move_delay;
 
     // Initializes color, texture, size, and health. Position must be initialized manually.
-    Unit(UnitType type, int player, float damage, int slowness, 
-         Tigr* const texture, TPixel color, int size, 
+    Unit(UnitType type, int player, float damage, int slowness,
+         Tigr* const texture, TPixel color, int size,
          float health=100, vec2f position={0,0}) :
         type(type),
         player(player),
@@ -216,16 +216,16 @@ void draw_unit(struct Unit* unit) {
     if (unit->health > 0) {
         int bar_width = unit->size * 1.5;
         int bar_height = 6;
-        int offset_y   = 8; 
+        int offset_y   = 8;
         int bar_x = unit->position.x - (bar_width / 2);
         int bar_y = unit->position.y - unit->size - bar_height - offset_y;
-        float max_health = (unit->type == UNIT_STAR) ? Star::MAX_HEALTH : 
+        float max_health = (unit->type == UNIT_STAR) ? Star::MAX_HEALTH :
                             (unit->type == UNIT_SQUARE) ? Square::MAX_HEALTH :
                             (unit->type == UNIT_CIRCLE) ? Circle::MAX_HEALTH :
                             Triangle::MAX_HEALTH;
 
         // Background (Max Health)
-        tigrFillRect(base_image, bar_x, bar_y, bar_width, bar_height, tigrRGB(0, 0, 0)); 
+        tigrFillRect(base_image, bar_x, bar_y, bar_width, bar_height, tigrRGB(0, 0, 0));
 
         // Current Health (Green/Red)
         int current_width = (int)(bar_width * (unit->health / max_health));
@@ -323,7 +323,7 @@ int main(int argc, char *argv[]) {
 
     vector<Star*> star_random_order;
     vector<Triangle*> triangle_random_order;
-    vector<Circle*> circle_random_order;    
+    vector<Circle*> circle_random_order;
     vector<Square*> square_random_order;
 
     star_random_order.reserve(star_list.size());
@@ -358,7 +358,7 @@ int main(int argc, char *argv[]) {
     int frames_until_damage_tick = UPDATES_UNTIL_DAMAGE;
     while(!tigrClosed(window) && !tigrKeyDown(window, TK_ESCAPE)) {
 
-        tigrClear(base_image, tigrRGB(255, 255, 255)); 
+        tigrClear(base_image, tigrRGB(255, 255, 255));
 
         // Randomize order
         shuffle(star_random_order.begin(), star_random_order.end(), rng);
@@ -456,14 +456,14 @@ void create_units(vector<T> &unit_list, const string &bin_path,
                   TNY_WRITE_TO_BUS_FNPTR bus_write) {
 
     int start_heights[4] = {45, 100, 120, 140};
-    
+
     // Calculate total width needed for all units
     const int spacing = 25;
     const int total_width = (count > 0) ? (count - 1) * spacing : 0;
-    
+
     // Calculate starting x position to center the group
     const int start_x = (windowWidth - total_width) / 2;
-    
+
     for (int i = 0; i < count; i++) {
         T new_unit(player_number);
 
@@ -550,7 +550,7 @@ bool check_collision(Unit* unit) {
     for(const Unit *other : unit_list) {
         if (other == unit) continue;
         if (other->health <= 0) continue;
-        
+
         float distance = (unit->position - other->position).length();
         if(distance <= (unit->size/1.5) + (unit->size/1.5)) {
             return true;
@@ -608,22 +608,22 @@ void bus_write(teenyat *t, tny_uword addr, tny_word data, uint16_t *delay) {
 // Ray-Circle intersection function
 bool rayCircleIntersect(vec2f origin, vec2f direction, vec2f circleCenter, float radius, float maxDistance, float& outDistance) {
     vec2f toCircle = circleCenter - origin;
-    
+
     // Project toCircle onto ray direction
     float projection = dot(toCircle,direction);
-    
+
     // If projection is negative, circle is behind ray
     if (projection < 0) return false;
-    
+
     // Find closest point on ray to circle center
     vec2f closestPoint = origin + (projection * direction);
-    
+
     // Distance from circle center to closest point
     vec2f diff = circleCenter - closestPoint;
     float distSq = dot(diff,diff);
-    
+
     float radiusSq = radius * radius;
-    
+
     if (distSq <= radiusSq && projection <= maxDistance) {
         // Calculate actual intersection distance
         float offset = sqrt(radiusSq - distSq);
@@ -636,19 +636,19 @@ bool rayCircleIntersect(vec2f origin, vec2f direction, vec2f circleCenter, float
 // Perform raycast and return the closest hit
 RaycastHit performRaycast(Unit* sourceUnit, vec2f direction, float maxDistance) {
     RaycastHit closestHit = {nullptr, maxDistance + 1.0f};
-    
+
     vec2f rayOrigin = sourceUnit->position;
-    
+
     for (Unit* other : unit_list) {
         // Skip self
         if (other == sourceUnit) continue;
-        
+
         // Skip dead units
         if (other->health <= 0) continue;
-        
+
         float hitDistance;
         float detectionRadius = other->size / 1.5f; // Match the collision radius
-        
+
         if (rayCircleIntersect(rayOrigin, direction, other->position, detectionRadius, maxDistance, hitDistance)) {
             if (hitDistance < closestHit.distance) {
                 closestHit.unit = other;
@@ -656,7 +656,7 @@ RaycastHit performRaycast(Unit* sourceUnit, vec2f direction, float maxDistance) 
             }
         }
     }
-    
+
     return closestHit;
 }
 
@@ -665,9 +665,9 @@ uint16_t encodeDetectionResult(Unit* sourceUnit, Unit* detectedUnit) {
     if (detectedUnit == nullptr) {
         return 0; // Nothing detected
     }
-    
+
     uint16_t result = 0;
-    
+
     // Encode unit type (bits 0-2)
     switch(detectedUnit->type) {
         case UNIT_SQUARE:   result = 1; break;
@@ -675,12 +675,12 @@ uint16_t encodeDetectionResult(Unit* sourceUnit, Unit* detectedUnit) {
         case UNIT_TRIANGLE: result = 3; break;
         case UNIT_STAR:     result = 4; break;
     }
-    
+
     // Set most significant bit if it's a foe (different player)
     if (detectedUnit->player != sourceUnit->player) {
         result |= 0x8000; // Set bit 15 (most significant bit)
     }
-    
+
     return result;
 }
 
@@ -689,9 +689,9 @@ vec2f getDirectionVector(Unit* unit, int direction) {
     // Player 1 faces "up" (negative Y)
     // Player 2 faces "down" (positive Y)
     // These directions are relative to the unit's facing
-    
+
     vec2f dir;
-    
+
     if (unit->player == 1) {
         switch(direction) {
             case 0: dir = vec2f(0, -1);  break; // Forward = up
@@ -707,28 +707,28 @@ vec2f getDirectionVector(Unit* unit, int direction) {
             case 3: dir = vec2f(-1, 0);  break; // Right (flipped for player 2)
         }
     }
-    
+
     return dir;
 }
 
 // Testing function to draw detection rays
 void draw_detection_rays(Unit* unit, bool show_rays) {
     if (!show_rays) return;
-    
+
     for (int i = 0; i < 4; i++) {
         vec2f dir = getDirectionVector(unit, i);
         RaycastHit hit = performRaycast(unit, dir, detect_range);
-        
+
         vec2f endPos;
         if (hit.unit) {
             endPos = unit->position + (hit.distance * dir);
             // Draw red line if hit
-            tigrLine(base_image, unit->position.x, unit->position.y, 
+            tigrLine(base_image, unit->position.x, unit->position.y,
                     endPos.x, endPos.y, tigrRGB(255, 0, 0));
         } else {
             endPos = unit->position + (detect_range * dir);
             // Draw gray line if no hit
-            tigrLine(base_image, unit->position.x, unit->position.y, 
+            tigrLine(base_image, unit->position.x, unit->position.y,
                     endPos.x, endPos.y, tigrRGB(128, 128, 128));
         }
     }
@@ -739,24 +739,24 @@ void apply_damage() {
     for (Unit* attacker : unit_list) {
         // Skip dead units
         if (attacker->health <= 0) continue;
-        
+
         // Skip units that can't deal damage
         if (attacker->damage <= 0) continue;
-        
+
         // Skip units that are currently moving (have movement delay)
         if (attacker->move_delay != 0) continue;
-        
+
         // Check for enemies in range to damage
         for (Unit* target : unit_list) {
             // Skip self
             if (target == attacker) continue;
-            
+
             // Skip dead units
             if (target->health <= 0) continue;
-            
+
             // Skip allies (only damage enemies)
             if (target->player == attacker->player) continue;
-            
+
             // Calculate distance between units
             float distance = (attacker->position - target->position).length();
 
@@ -777,7 +777,7 @@ void apply_damage() {
                         }
                     }
                 }
-                
+
                 // Clamp health to 0 minimum
                 if (target->health < 0) {
                     target->health = 0;
@@ -795,7 +795,7 @@ void apply_damage() {
 
                 // Trigger damage taken interrupt on the target
                 tny_external_interrupt(&target->t, TOOK_DAMAGE_INTERRUPT);
-                
+
             }
         }
     }
