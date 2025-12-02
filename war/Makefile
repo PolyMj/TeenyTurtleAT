@@ -1,5 +1,5 @@
 CFLAGS += -I.. -I./include -O3 -Wno-narrowing
-CPPFLAGS += $(CFLAGS) --std=c++17
+CPPFLAGS += $(CFLAGS) --std=c++20
 ifeq ($(OS),Windows_NT)
 	LDFLAGS += -s -lopengl32 -lgdi32
 	RMCMD = del
