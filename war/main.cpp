@@ -28,6 +28,7 @@ using namespace std;
 #define TOOK_DAMAGE_INTERRUPT           TNY_XINT1
 #define STAR_TOOK_DAMANGE_INTERRUPT     TNY_XINT2
 #define LOW_HEALTH_INTERRUPT            TNY_XINT3
+#define HIT_EDGE_INTERRUPT              TNY_XINT4
 
 #define LOW_HEALTH_THRESHOLD 20.0f
 
@@ -580,9 +581,16 @@ bool update_unit(Unit* unit, vec2f move_dir) {
             unit->position -= move_dir;
         }
 
+
         // Clamp position to window bounds from the circle around the units
         unit->position.x = clamp(unit->position.x, unit->size/1.5f, windowWidth - unit->size/1.5f);
         unit->position.y = clamp(unit->position.y, unit->size/1.5f, windowHeight - unit->size/1.5f);
+
+        if (unit->position.x == unit->size/1.5f || unit->position.x == windowWidth - unit->size/1.5f ||
+            unit->position.y == unit->size/1.5f || unit->position.y == windowHeight - unit->size/1.5f) {
+            // Hit edge
+            tny_external_interrupt(&unit->t, HIT_EDGE_INTERRUPT);
+        }
 
         unit->move_delay = unit->slowness;
         return true;
