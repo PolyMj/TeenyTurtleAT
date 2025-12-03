@@ -29,6 +29,7 @@ using namespace std;
 #define STAR_TOOK_DAMANGE_INTERRUPT     TNY_XINT2
 #define LOW_HEALTH_INTERRUPT            TNY_XINT3
 #define HIT_EDGE_INTERRUPT              TNY_XINT4
+#define COLLISION_INTERRUPT             TNY_XINT5
 
 #define LOW_HEALTH_THRESHOLD 20.0f
 
@@ -566,6 +567,7 @@ bool check_collision(Unit* unit) {
 
         float distance = (unit->position - other->position).length();
         if(distance <= (unit->size/1.5) + (unit->size/1.5)) {
+            tny_external_interrupt(&unit->t, COLLISION_INTERRUPT);
             return true;
          }
     }
