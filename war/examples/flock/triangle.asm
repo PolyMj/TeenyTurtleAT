@@ -31,39 +31,53 @@ set rE, 0
 
     !left_edge
         set rE, DETECT_RIGHT
-        set rD, MOVE_LEFT
-        jmp !flock
+        jmp !go_left
 
     !right_edge        
         set rE, DETECT_LEFT
-        set rD, MOVE_RIGHT
-        jmp !flock
+        jmp !go_right
 
     !center_alone        
         set rE, 0
         jmp !leader_loop
 
 
-!flock
-    ; Move flock members back and out
+!go_left
+    ; Move left first
     set rC, 5
-    !expand
-        str [rD], rZ
-        str [MOVE_BACKWARD], rZ
-        lup rC, !expand
+    !move_left
+        str [MOVE_LEFT], rZ
+        lup rC, !move_left
     
-    ; Move flock members without passing
-    !flock_loop
+    ; Then move forward
+    !left_forward_loop
         lod rA, [rE]
         cmp rA, rZ
-        jne !flock_loop
+        jne !left_forward_loop
 
         str [MOVE_FORWARD], rZ
-        jmp !flock_loop
+        jmp !left_forward_loop
+
+
+!go_right
+    ; Move right first
+    set rC, 5
+    !move_right
+        str [MOVE_RIGHT], rZ
+        lup rC, !move_right
+    
+    ; Then move forward
+    !right_forward_loop
+        lod rA, [rE]
+        cmp rA, rZ
+        jne !right_forward_loop
+
+        str [MOVE_FORWARD], rZ
+        jmp !right_forward_loop
 
 
 !leader_loop
-    dly 0x7 ; Leader should move slow enough for flock to catch up
+    dly 0x7
     str [MOVE_FORWARD], rZ
     jmp !leader_loop
 

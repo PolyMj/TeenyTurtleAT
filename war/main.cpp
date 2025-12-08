@@ -1,7 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
-#include <format>
+//#include <format>
 #include <string>
 #include <vector>
 #include <random>
@@ -223,6 +223,7 @@ void draw_unit(struct Unit* unit) {
         int bar_height = 6;
         int offset_y   = 8;
         int bar_x = unit->position.x - (bar_width / 2);
+
         int bar_y = unit->position.y - unit->size - bar_height - offset_y;
         float max_health = (unit->type == UNIT_STAR) ? Star::MAX_HEALTH :
                             (unit->type == UNIT_SQUARE) ? Square::MAX_HEALTH :
@@ -413,9 +414,9 @@ int main(int argc, char *argv[]) {
             tigrBlit(window, base_image, 0, 0, 0, 0, base_image->w, base_image->h);
 
             if(GAME_OVER) {
-                std::string msg = std::format("Game OVER Player {} WINS!!", GAME_OVER);
-                TPixel col = GAME_OVER == 1 ? TPixel{237,28,36,255} : TPixel{0,162,232,255};
-                tigrPrint(window, tfont, 20,  20, col, msg.c_str());
+                //std::string msg = std::format("Game OVER Player {} WINS!!", GAME_OVER);
+                //TPixel col = GAME_OVER == 1 ? TPixel{237,28,36,255} : TPixel{0,162,232,255};
+                //tigrPrint(window, tfont, 20,  20, col, msg.c_str());
             }
 
             tigrUpdate(window);
