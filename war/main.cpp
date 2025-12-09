@@ -6,6 +6,7 @@
 #include <vector>
 #include <random>
 #include <algorithm>
+#include <filesystem>
 #include "vec.hpp"
 #include "tigr.h"
 #include "teenyat.h"
@@ -34,6 +35,7 @@ using namespace std;
 #define LOW_HEALTH_THRESHOLD 20.0f
 
 #define UPDATES_UNTIL_DAMAGE 20
+#define MAX_UNITS            16
 
 enum UnitType {
     UNIT_STAR,
@@ -135,10 +137,33 @@ struct RaycastHit {
     float distance;
 };
 
+struct Player {
+    // Player number
+    const int id;
+
+    // Paths for all files/directories relevant to the player
+    struct {
+        string home_dir, points, star, square, circle, triangle;
+    } paths;
+
+    // Counts for all unit types
+    struct {
+        int square{6}, circle{5}, triangle{5};
+    } counts;
+
+    Player(const int &id, const string &home_dir);
+
+    // Ensures that the requried files are present
+    bool all_bins_exist() const;
+
+    // Sets negative counts to zero, ensures that the point maximum (MAX_UNITS) is held
+    void correct_counts();
+};
+
 void bus_read(teenyat *t, tny_uword addr, tny_word *data, uint16_t *delay);
 void bus_write(teenyat *t, tny_uword addr, tny_word data, uint16_t *delay);
 string get_file_path(string folder_name, string file_name);
-void get_counts(int points[], string file_path);
+void get_counts(Player &player, string file_path);
 bool rayCircleIntersect(vec2f origin, vec2f direction, vec2f circleCenter, float radius, float maxDistance, float& outDistance);
 RaycastHit performRaycast(Unit* sourceUnit, vec2f direction, float maxDistance);
 uint16_t encodeDetectionResult(Unit* sourceUnit, Unit* detectedUnit);
@@ -249,31 +274,15 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    string player1_folder_name = argv[1];
-    string player2_folder_name = argv[2];
+    string player1_dir = argv[1];
+    string player2_dir = argv[2];
 
-    string player1_points_path = get_file_path(player1_folder_name, "points.txt");
-    string player1_star_path = get_file_path(player1_folder_name, "star.bin");
-    string player1_square_path = get_file_path(player1_folder_name, "square.bin");
-    string player1_circle_path = get_file_path(player1_folder_name, "circle.bin");
-    string player1_triangle_path = get_file_path(player1_folder_name, "triangle.bin");
-
-    string player2_points_path = get_file_path(player2_folder_name, "points.txt");
-    string player2_star_path = get_file_path(player2_folder_name, "star.bin");
-    string player2_square_path = get_file_path(player2_folder_name, "square.bin");
-    string player2_circle_path = get_file_path(player2_folder_name, "circle.bin");
-    string player2_triangle_path = get_file_path(player2_folder_name, "triangle.bin");
-
-    int player1_unit_counts[3];
-    int player2_unit_counts[3];
-
-    get_counts(player1_unit_counts, player1_points_path);
-    get_counts(player2_unit_counts, player2_points_path);
+    Player player1(1,player1_dir), player2(2,player2_dir);
 
     star_list.reserve(2);
-    square_list.reserve(player1_unit_counts[0] + player2_unit_counts[0]);
-    circle_list.reserve(player1_unit_counts[1] + player2_unit_counts[1]);
-    triangle_list.reserve(player1_unit_counts[2] + player2_unit_counts[2]);
+    square_list.reserve(player1.counts.square + player2.counts.square);
+    circle_list.reserve(player1.counts.circle + player2.counts.circle);
+    triangle_list.reserve(player1.counts.triangle + player2.counts.triangle);
 
     red_triangle_image = tigrLoadImage("img/Red_Triangle.png");
     if(!red_triangle_image) tigrError(0, "Could not img/Red_Triangle.png");
@@ -288,38 +297,37 @@ int main(int argc, char *argv[]) {
     if(!blue_star_image) tigrError(0, "Could not img/Blue_Star.png");
 
     // Player 1 units
-    create_units(star_list, player1_star_path, 1, UNIT_STAR,
+    create_units(star_list, player1.paths.star, 1, UNIT_STAR,
                  1,
                  bus_read, bus_write);
 
-
-    create_units(square_list, player1_square_path, 1, UNIT_SQUARE,
-                 player1_unit_counts[0],
+    create_units(square_list, player1.paths.square, 1, UNIT_SQUARE,
+                 player1.counts.square,
                  bus_read, bus_write);
 
-    create_units(circle_list, player1_circle_path, 1, UNIT_CIRCLE,
-                 player1_unit_counts[1],
+    create_units(circle_list, player1.paths.circle, 1, UNIT_CIRCLE,
+                 player1.counts.circle,
                  bus_read, bus_write);
 
-    create_units(triangle_list, player1_triangle_path, 1, UNIT_TRIANGLE,
-                 player1_unit_counts[2],
+    create_units(triangle_list, player1.paths.triangle, 1, UNIT_TRIANGLE,
+                 player1.counts.triangle,
                  bus_read, bus_write);
 
     // Player 2 units
-    create_units(star_list, player2_star_path, 2, UNIT_STAR,
+    create_units(star_list, player2.paths.star, 2, UNIT_STAR,
                 1,
                 bus_read, bus_write);
 
-    create_units(square_list, player2_square_path, 2, UNIT_SQUARE,
-                 player2_unit_counts[0],
+    create_units(square_list, player2.paths.square, 2, UNIT_SQUARE,
+                 player2.counts.square,
                  bus_read, bus_write);
 
-    create_units(circle_list, player2_circle_path, 2, UNIT_CIRCLE,
-                 player2_unit_counts[1],
+    create_units(circle_list, player2.paths.circle, 2, UNIT_CIRCLE,
+                 player2.counts.circle,
                  bus_read, bus_write);
 
-    create_units(triangle_list, player2_triangle_path, 2, UNIT_TRIANGLE,
-                 player2_unit_counts[2], bus_read, bus_write);
+    create_units(triangle_list, player2.paths.triangle, 2, UNIT_TRIANGLE,
+                 player2.counts.triangle, bus_read, bus_write);
 
     window = tigrWindow(windowWidth, windowHeight, "Teeny WAR", TIGR_FIXED);
     base_image = tigrBitmap(window->w, window->h);
@@ -423,15 +431,12 @@ int main(int argc, char *argv[]) {
             damage_possible = false;
 
         }
-
-
     }
 
     tigrFree(base_image);
     tigrFree(window);
 
     return EXIT_SUCCESS;
-
 }
 
 string get_file_path(string folder_name, string file_name) {
@@ -448,14 +453,14 @@ string get_file_path(string folder_name, string file_name) {
     return full_path;
 }
 
-void get_counts(int points[], string file_path) {
+void get_counts(Player &player, string file_path) {
     ifstream inputFile(file_path);
 
     if (inputFile.is_open()) {
         string line;
         if (getline(inputFile, line)) {
             istringstream iss(line);
-            iss >> points[0] >> points[1] >> points[2];
+            iss >> player.counts.square >> player.counts.circle >> player.counts.triangle;
         }
         inputFile.close();
     } else {
@@ -825,4 +830,73 @@ void apply_damage() {
             }
         }
     }
+}
+
+
+Player::Player(const int &id, const string &home_dir) : id(id) {
+    paths.home_dir = home_dir;
+    paths.points   = get_file_path(home_dir, "points.txt");
+    paths.star     = get_file_path(home_dir, "star.bin");
+    paths.square   = get_file_path(home_dir, "square.bin");
+    paths.circle   = get_file_path(home_dir, "circle.bin");
+    paths.triangle = get_file_path(home_dir, "triangle.bin");
+
+    if (!filesystem::exists(paths.points)) {
+        cerr << "WARNING: Points file is missing for player " << id << ", using default unit counts" << endl;
+    }
+    else {
+        get_counts(*this, paths.points);
+    }
+
+    correct_counts();
+    if (!all_bins_exist()) exit(-1);
+}
+
+bool Player::all_bins_exist() const {
+    if (!filesystem::exists(paths.star)) {
+        cerr << "ERROR: Star file is missing for player " << id << endl;
+        return false;
+    }
+    if (counts.square > 0 && !filesystem::exists(paths.square)) {
+        cerr << "ERROR: Square file is missing for player " << id << endl;
+        return false;
+    }
+    if (counts.circle > 0 && !filesystem::exists(paths.circle)) {
+        cerr << "ERROR: Circle file is missing for player " << id << endl;
+        return false;
+    }
+    if (counts.triangle > 0 && !filesystem::exists(paths.triangle)) {
+        cerr << "ERROR: Triangle file is missing for player " << id << endl;
+        return false;
+    }
+    return true;
+}
+
+void Player::correct_counts() {
+    if (counts.square < 0) {
+        cerr << "WARNING: Player " << id << " tried to add negative squares" << endl;
+        counts.square = 0;
+    }
+    if (counts.circle < 0) {
+        cerr << "WARNING: Player " << id << " tried to add negative circles" << endl;
+        counts.circle = 0;
+    }
+    if (counts.triangle < 0) {
+        cerr << "WARNING: Player " << id << " tried to add negative triangles" << endl;
+        counts.triangle = 0;
+    }
+
+    int total = counts.square + counts.circle + counts.triangle;
+    if (total <= MAX_UNITS) return;
+    cerr << "WARNING: Point usage exceeded max for player " << id << ": " << total << " > " << MAX_UNITS << endl;
+
+    int remaining_points = MAX_UNITS;
+    counts.square = min(counts.square, remaining_points);
+    remaining_points -= counts.square;
+
+    counts.circle = min(counts.circle, remaining_points);
+    remaining_points -= counts.circle;
+
+    counts.triangle = min(counts.triangle, remaining_points);
+    remaining_points -= counts.triangle;
 }
