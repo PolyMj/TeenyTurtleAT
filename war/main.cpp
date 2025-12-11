@@ -581,6 +581,7 @@ bool update_unit(Unit* unit, vec2f move_dir) {
         unit->position += move_dir;
         if(check_collision(unit)) {
             unit->position -= move_dir;
+            return false;
         }
 
 
@@ -757,6 +758,7 @@ void draw_detection_rays(Unit* unit, bool show_rays) {
 }
 
 void apply_damage() {
+    if (GAME_OVER) return;
     // Process damage for all units
     for (Unit* attacker : unit_list) {
         // Skip dead units
