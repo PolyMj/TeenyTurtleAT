@@ -170,6 +170,7 @@ uint16_t encodeDetectionResult(Unit* sourceUnit, Unit* detectedUnit);
 vec2f getDirectionVector(Unit* unit, int direction);
 void draw_detection_rays(Unit* unit, bool show_rays);
 void apply_damage();
+void health_circle(Tigr* bmp, int x0, int y0, int r, float healthPercent, TPixel healthColor, TPixel damagedColor);
 
 
 template<typename T>
@@ -242,28 +243,22 @@ void draw_unit(struct Unit* unit) {
             break;
     }
 
-    // Health Bar
+    // Health Circle (only for living units)
     if (unit->health > 0) {
-        int bar_width = unit->size * 1.5;
-        int bar_height = 6;
-        int offset_y   = 8;
-        int bar_x = unit->position.x - (bar_width / 2);
-        int bar_y = unit->position.y - unit->size - bar_height - offset_y;
         float max_health = (unit->type == UNIT_STAR) ? Star::MAX_HEALTH :
                             (unit->type == UNIT_SQUARE) ? Square::MAX_HEALTH :
                             (unit->type == UNIT_CIRCLE) ? Circle::MAX_HEALTH :
                             Triangle::MAX_HEALTH;
 
-        // Background (Max Health)
-        tigrFillRect(base_image, bar_x, bar_y, bar_width, bar_height, tigrRGB(0, 0, 0));
+        float healthPercent = unit->health / max_health;
+        int radius = (int)(unit->size / 1.5);
+        
+        TPixel healthColor = tigrRGB(0, 255, 0);  // Green for healthy
+        TPixel damagedColor = tigrRGB(0, 0, 0);    // Black for missing health
 
-        // Current Health (Green/Red)
-        int current_width = (int)(bar_width * (unit->health / max_health));
-        TPixel health_color = (unit->health / max_health > 0.3) ? tigrRGB(0, 255, 0) : tigrRGB(255, 0, 0);
-        tigrFillRect(base_image, bar_x, bar_y, current_width, bar_height, health_color);
+        health_circle(base_image, unit->position.x, unit->position.y, radius, healthPercent, healthColor, damagedColor);
     }
 
-    tigrCircle(base_image, unit->position.x, unit->position.y, (int)unit->size/1.5, unit->color);
     return;
 }
 
@@ -899,4 +894,68 @@ void Player::correct_counts() {
 
     counts.triangle = min(counts.triangle, remaining_points);
     remaining_points -= counts.triangle;
+}
+
+void health_circle(Tigr* bmp, int x0, int y0, int r, float healthPercent, TPixel healthColor, TPixel damagedColor) {
+    // Use Bresenham's circle algorithm to collect all points
+    vector<std::pair<int, int>> points;
+    
+    int E = 1 - r;
+    int dx = 0;
+    int dy = -2 * r;
+    int x = 0;
+    int y = r;
+
+    // Collect points using the same algorithm as tigrCircle
+    auto addPoint = [&](int px, int py) {
+        points.push_back({px, py});
+    };
+
+    // Top, bottom, left, right
+    addPoint(x0, y0 + r);
+    addPoint(x0, y0 - r);
+    addPoint(x0 + r, y0);
+    addPoint(x0 - r, y0);
+
+    while (x < y - 1) {
+        x++;
+
+        if (E >= 0) {
+            y--;
+            dy += 2;
+            E += dy;
+        }
+
+        dx += 2;
+        E += dx + 1;
+
+        addPoint(x0 + x, y0 + y);
+        addPoint(x0 - x, y0 + y);
+        addPoint(x0 + x, y0 - y);
+        addPoint(x0 - x, y0 - y);
+
+        if (x != y) {
+            addPoint(x0 + y, y0 + x);
+            addPoint(x0 - y, y0 + x);
+            addPoint(x0 + y, y0 - x);
+            addPoint(x0 - y, y0 - x);
+        }
+    }
+
+    // Sort points by angle to create a continuous circle
+    sort(points.begin(), points.end(), [x0, y0](const auto& a, const auto& b) {
+        float angleA = atan2(a.first - x0, -(a.second - y0)); 
+        float angleB = atan2(b.first - x0, -(b.second - y0));
+        return angleA < angleB;
+    });
+
+    // Calculate how many points should be green based on health percentage
+    int totalPoints = points.size();
+    int healthyPoints = (int)(totalPoints * healthPercent);
+
+    // Draw points with appropriate colors
+    for (int i = 0; i < totalPoints; i++) {
+        TPixel color = (i < healthyPoints) ? healthColor : damagedColor;
+        tigrPlot(bmp, points[i].first, points[i].second, color);
+    }
 }
